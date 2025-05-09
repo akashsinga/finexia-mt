@@ -21,22 +21,22 @@ def init_system(superadmin_username: str, superadmin_email: str, superadmin_pass
             logger.info("System already initialized with superadmin")
             return
 
-        # Create superadmin (not tied to any tenant)
-        logger.info(f"Creating superadmin user: {superadmin_username}")
-        superadmin = create_superadmin(db=db, username=superadmin_username, email=superadmin_email, password=superadmin_password, full_name="System Administrator")
-
-        # Create default tenant (Finexia)
+        # Create default tenant (Finexia) FIRST
         logger.info("Creating default Finexia tenant")
         default_tenant = TenantCreate(name="Finexia", slug="finexia", plan="enterprise", max_symbols=None)
         tenant = create_tenant(db=db, tenant=default_tenant)
+
+        # Create superadmin (now tied to the tenant)
+        logger.info(f"Creating superadmin user: {superadmin_username}")
+        superadmin = create_superadmin(db=db, username=superadmin_username, email=superadmin_email, password=superadmin_password, full_name="System Administrator",tenant_id=tenant.id)
 
         # Create admin user for Finexia tenant
         from app.schemas.user import UserCreate
         from app.services.user_service import create_user
 
-        logger.info("Creating admin user for Finexia tenant")
-        admin_user = UserCreate(username="admin", email="admin@finexia.com", password="admin123", full_name="Finexia Administrator", is_admin=True, tenant_id=tenant.id)  # Should be changed after first login
-        create_user(db=db, user=admin_user)
+        # logger.info("Creating admin user for Finexia tenant")
+        # admin_user = UserCreate(username="admin", email="admin@finexia.com", password="admin123", full_name="Finexia Administrator", is_admin=True, tenant_id=tenant.id)  # Should be changed after first login
+        # create_user(db=db, user=admin_user)
 
         logger.info("System initialization completed successfully")
     except Exception as e:

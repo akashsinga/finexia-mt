@@ -2,7 +2,7 @@
 import argparse
 import sys
 import os
-from init_system import init_system
+from app.scripts.init_system import init_system
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Initialize Finexia system")

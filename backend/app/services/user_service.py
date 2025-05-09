@@ -71,7 +71,7 @@ def update_user(db: Session, user_id: int, user_data: UserUpdate) -> Optional[Us
     return db_user
 
 
-def create_superadmin(db: Session, username: str, email: str, password: str, full_name: Optional[str] = None) -> User:
+def create_superadmin(db: Session, username: str, email: str, password: str, full_name: Optional[str] = None, tenant_id: Optional[int] = None) -> User:
     """Create a superadmin user"""
     # Check if username or email already exists
     if get_user_by_username(db, username):
@@ -83,8 +83,8 @@ def create_superadmin(db: Session, username: str, email: str, password: str, ful
     # Hash the password
     hashed_password = get_password_hash(password)
 
-    # Create superadmin user (no tenant)
-    db_user = User(email=email, username=username, hashed_password=hashed_password, full_name=full_name, is_admin=True, is_superadmin=True, tenant_id=None, is_active=True)
+    # Create superadmin user (with tenant_id)
+    db_user = User(email=email, username=username, hashed_password=hashed_password, full_name=full_name, is_admin=True, is_superadmin=True, tenant_id=tenant_id, is_active=True)
 
     db.add(db_user)
     db.commit()
