@@ -79,3 +79,28 @@ def set_tenant_config(db: Session, tenant_id: int, key: str, value: Any) -> Conf
     db.commit()
     db.refresh(param)
     return param
+
+
+def initialize_tenant_config(db: Session, tenant_id: int) -> None:
+    """
+    Initialize default config for a new tenant.
+    """
+    for key, config in DEFAULT_CONFIG.items():
+        param = ConfigParam(tenant_id=tenant_id, key=key, description=config["description"])
+
+        # Set value based on type
+        value = config["value"]
+        value_type = config["type"]
+
+        if value_type == "bool":
+            param.value_bool = value
+        elif value_type == "int":
+            param.value_int = value
+        elif value_type == "float":
+            param.value_float = value
+        else:  # str
+            param.value_str = value
+
+        db.add(param)
+
+    db.commit()

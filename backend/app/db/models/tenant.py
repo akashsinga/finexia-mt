@@ -1,6 +1,7 @@
-# backend/app/db/models/tenant.py
+# backend/app/db/models/tenant.py (updated)
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 
@@ -15,3 +16,9 @@ class Tenant(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Override the tenant_id field since Tenant doesn't have a tenant
+    tenant_id = None
+
+    # Relationships
+    users = relationship("User", back_populates="tenant")
