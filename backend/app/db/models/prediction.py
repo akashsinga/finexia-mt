@@ -31,4 +31,4 @@ class Prediction(Base):
     # tenant_id comes from Base class
 
     # Relationships
-    symbol = relationship("Symbol")
+    symbol = relationship("Symbol", back_populates="predictions")

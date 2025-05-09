@@ -12,11 +12,11 @@ class CustomBase:
 
     @declared_attr
     def tenant_id(cls):
-        # Skip tenant field for specified tenant-agnostic models
-        tenant_agnostic_models = ["Tenant", "Symbol", "EODData", "FeatureData"]
+        # List of models that should NOT have tenant_id FK
+        tenant_agnostic_models = ["Tenant", "Symbol", "EODData", "FeatureData"]  # Tenants are not tenant-specific  # Global symbol repository  # EOD data is shared  # Features are shared
         if cls.__name__ in tenant_agnostic_models:
             return None
-        return Column(Integer, ForeignKey("tenant.id"), nullable=False, index=True)
+        return Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
 
 Base = declarative_base(cls=CustomBase)
