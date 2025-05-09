@@ -4,9 +4,60 @@
 @tailwind utilities;
 
 /* Import modern font (Inter) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&display=swap');
 
 /* Import Phosphor Icons */
 @import url('https://unpkg.com/@phosphor-icons/web@2.0.3/src/fill/style.css');
 @import url('https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css');
 
+/* Form labels */
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+/* Basic form inputs - Updated to remove outline */
+.form-input {
+  @apply w-full py-2 pl-10 pr-10 ring-1 ring-gray-200 rounded-lg focus:ring-blue-400 outline-none border-none transition-all duration-500 text-sm;
+}
+
+/* Input with icon wrapper */
+.form-input-icon-wrapper {
+  @apply relative;
+}
+
+/* Left icon inside input */
+.input-icon {
+  @apply absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400;
+}
+
+/* Right icon inside input (for toggles, etc) */
+.input-icon-right {
+  @apply absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-500 focus:outline-none transition-colors duration-200 cursor-pointer;
+}
+
+/* Checkbox styling */
+.form-checkbox {
+  @apply w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500;
+}
+
+/* Button styling - Primary */
+.form-button {
+  @apply w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center h-10 font-medium transition-colors duration-200 text-sm;
+}
+
+/* Secondary button variant */
+.form-button-secondary {
+  @apply w-full py-2 px-4 bg-white text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center h-10 font-medium transition-colors duration-200 text-sm;
+}
+
+/* Outline button variant */
+.form-button-outline {
+  @apply w-full py-2 px-4 bg-transparent text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center h-10 font-medium transition-colors duration-200 text-sm;
+}
+
+/* Disabled state for all button variants */
+.form-button:disabled,
+.form-button-secondary:disabled,
+.form-button-outline:disabled {
+  @apply opacity-70 cursor-not-allowed;
+}
