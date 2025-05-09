@@ -5,8 +5,6 @@ __pycache__/
 *.so
 .Python
 env/
-venv/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -21,47 +19,17 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-.pytest_cache/
-.coverage
-htmlcov/
 
-# FastAPI
-.env
-.env.local
-.env.development
-.env.test
-.env.production
+# Virtual Environment
+venv/
+ENV/
 
-# Database
-*.sqlite
-*.db
-
-# ML models - but not model definitions
-*.pkl
-*.h5
-*.joblib
-*.model
-model_cache/
-
-# Node/Vue
-node_modules/
-npm-debug.log
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-.DS_Store
-dist/
-dist-ssr/
-coverage/
-*.local
-.vscode/*
-!.vscode/extensions.json
+# IDE
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.vscode/
+*.swp
+*.swo
+.DS_Store
 
 # Logs
 logs/
@@ -69,36 +37,67 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.DS_Store
+# Database
+*.sqlite3
+*.db
 
-# Temp files and data
-temp/
-tmp/
-data/
-.cache/
-.parcel-cache/
-
-# Docker
-.dockerignore
-docker-compose.override.yml
-
-# Testing
-.coverage
-.nox/
-.pytest_cache/
-.hypothesis/
-.tox/
+# Unit test / coverage reports
 htmlcov/
-coverage/
+.tox/
+.coverage
+.coverage.*
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Translations
+*.mo
+*.pot
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Node
+node_modules/
+jspm_packages/
+bower_components/
+
+# Cache directories and files
+cache/
+**/cache/
+*/cache/*
+**/*.cache
+**/scrip_master_cache.csv
+**/scrip_master_checksum.txt
+**/symbol_changes/
+
+# Model files
+models/
+*.pkl
+*.h5
+*.pt
+*.model
+
+# API documentation
+docs/_build/
+site/
+
+# Output files
+*.csv
+*.xlsx
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+
+# Temporary files
+tmp/
+temp/
+.tmp/
