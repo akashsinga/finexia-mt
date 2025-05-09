@@ -7,6 +7,7 @@ import os
 from app.config import settings
 from app.api.middleware.tenant import TenantMiddleware
 from app.api.routers import auth, users, tenants, symbols, config
+from app.websockets.router import router as websocket_router
 
 
 @asynccontextmanager
@@ -56,6 +57,8 @@ app.include_router(config.router, prefix=f"{settings.API_V1_PREFIX}/config", tag
 # app.include_router(historical.router, prefix=f"{settings.API_V1_PREFIX}/historical", tags=["historical"])
 # app.include_router(models_router.router, prefix=f"{settings.API_V1_PREFIX}/models", tags=["models"])
 # app.include_router(system.router, prefix=f"{settings.API_V1_PREFIX}/system", tags=["system"])
+
+app.include_router(websocket_router)
 
 
 @app.get("/", tags=["root"])

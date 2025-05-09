@@ -160,3 +160,17 @@ def verify_predictions(db: Session, tenant_id: int) -> int:
 
     db.commit()
     return updated_count
+
+
+async def notify_new_prediction(symbol_id: int, tenant_id: int, prediction_data: Dict[str, Any]):
+    """Send notification about a new prediction via WebSocket"""
+    from app.websockets.connection_manager import connection_manager
+
+    # Format message
+    message = {"type": "prediction", "timestamp": datetime.now().isoformat(), "data": {"symbol_id": symbol_id, "prediction": prediction_data}, "tenant_id": tenant_id}
+
+    # Send to all clients in predictions topic
+    await connection_manager.broadcast(message, "predictions")
+
+    # Also send to tenant-specific channel
+    await connection_manager.broadcast_to_tenant(message, tenant_id)

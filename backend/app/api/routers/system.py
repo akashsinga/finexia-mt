@@ -1,6 +1,6 @@
-# backend/app/api/routers/system.py
+# backend/app/api/routers/system.py (updated with pipeline integration)
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -11,6 +11,7 @@ from app.db.models.symbol import Symbol
 from app.db.models.tenant import Tenant
 from app.schemas.system import SystemStatusResponse, PipelineRunRequest, PipelineRunResponse
 from app.api.deps import get_current_tenant, get_current_user, get_current_active_admin
+from app.services.pipeline_service import run_pipeline, get_pipeline_status
 
 router = APIRouter()
 
@@ -34,10 +35,20 @@ async def get_system_status(db: Session = Depends(get_db_session), tenant=Depend
 @router.post("/run-pipeline", response_model=PipelineRunResponse)
 async def trigger_pipeline(background_tasks: BackgroundTasks, request: PipelineRunRequest = PipelineRunRequest(), db: Session = Depends(get_db_session), tenant=Depends(get_current_tenant), current_user=Depends(get_current_active_admin)):
     """Trigger a run of the data pipeline for this tenant"""
-    # This would typically be implemented to run the pipeline in the background
-    # For now, we'll just return a success message
+    # Get current pipeline status
+    status = get_pipeline_status(tenant.id)
 
-    # In a real implementation, you'd have:
-    # background_tasks.add_task(run_pipeline_for_tenant, tenant.id, request.force, request.steps)
+    # If pipeline is already running and not forced, return status
+    if status["status"] == "running" and not request.force:
+        return PipelineRunResponse(message="Pipeline already running", started_at=datetime.fromisoformat(status["started_at"]) if isinstance(status["started_at"], str) else status["started_at"], requested_by=current_user.username, status=status["status"])
+
+    # Start pipeline in background task
+    background_tasks.add_task(run_pipeline, tenant_id=tenant.id, steps=request.steps, force=request.force)
 
     return PipelineRunResponse(message="Pipeline started successfully", started_at=datetime.now(), requested_by=current_user.username, status="running")
+
+
+@router.get("/pipeline-status", response_model=Dict[str, Any])
+async def get_pipeline_current_status(db: Session = Depends(get_db_session), tenant=Depends(get_current_tenant), current_user=Depends(get_current_user)):
+    """Get current pipeline status"""
+    return get_pipeline_status(tenant.id)
