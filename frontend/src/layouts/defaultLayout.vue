@@ -3,7 +3,7 @@
     <!-- Sidebar -->
     <div class="fixed z-10 h-full transition-all duration-300 bg-white border-r border-gray-300 flex flex-col" :class="{ 'w-64': !collapsed, 'w-16': collapsed }">
       <!-- Header -->
-      <div class="py-5 px-4 border-b border-gray-200" :class="{ 'justify-center px-0': collapsed }">
+      <div class="py-5 px-4 border-b border-gray-200" :class="{ 'justify-center !px-0': collapsed }">
         <div class="flex items-center gap-3" :class="{ 'justify-center': collapsed }">
           <div class="w-10 h-10 bg-blue-800 rounded-lg flex items-center justify-center p-1">
             <img src="@/assets/images/favicon.svg" class="w-full h-full" alt="Finexia logo" />
@@ -16,7 +16,7 @@
       </div>
 
       <!-- Collapse Button -->
-      <button class="absolute top-1/2 -right-3.5 w-7 h-7 bg-white rounded-full flex items-center justify-center ring-1 ring-gray-300 text-gray-600 hover:text-blue-600 transition-colors duration-200" @click="toggleSidebar" aria-label="Toggle sidebar">
+      <button class="absolute top-1/2 -right-2.5 w-5 h-5 bg-white rounded-full flex items-center justify-center ring-1 ring-gray-300 text-gray-600 hover:text-blue-600 transition-colors duration-200" @click="toggleSidebar" aria-label="Toggle sidebar">
         <i class="ph" :class="collapsed ? 'ph-caret-right' : 'ph-caret-left'"></i>
       </button>
 
@@ -115,9 +115,11 @@
 
       <div class="flex-1 p-6 overflow-auto relative bg-gray-50 content-area">
         <!-- Add transition wrapper around router-view -->
-        <transition name="fade-slide" mode="out-in">
-          <router-view />
-        </transition>
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </div>
 
       <div class="py-3 px-6 text-xs text-gray-500 bg-white/90 border-t border-gray-300 backdrop-blur">
@@ -290,16 +292,8 @@ export default {
 }
 
 /* Content area background pattern */
-.content-area::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle, rgba(191, 219, 254, 0.4) 1px, transparent 1px),
-    radial-gradient(circle, rgba(186, 230, 253, 0.3) 1px, transparent 1px);
-  opacity: 0.5;
-  pointer-events: none;
-  z-index: 0;
+.content-area {
+  @apply bg-slate-50;
 }
 
 /* Navigation hover styles */

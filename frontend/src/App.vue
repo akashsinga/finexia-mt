@@ -7,24 +7,7 @@
 
 <script>
 export default {
-  name: 'App',
-
-  mounted: function () {
-    // Initialize any app-wide services or state
-    this.initializeApp();
-  },
-
-  methods: {
-    initializeApp: function () {
-      // Check for authentication on page load
-      const token = localStorage.getItem('token');
-
-      if (token) {
-        // Validate token or refresh if needed
-        console.log('Token found, app initialized');
-      }
-    }
-  }
+  name: 'App'
 }
 </script>
 

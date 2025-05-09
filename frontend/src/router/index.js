@@ -4,7 +4,7 @@ import MainLayout from '@/layouts/defaultLayout.vue';
 
 // Lazy-load all views
 const Login = () => import('@/views/auth/Login.vue');
-// const Dashboard = () => import('@/views/dashboard/Dashboard.vue');
+const Dashboard = () => import('@/views/dashboard/Dashboard.vue');
 // const SymbolsList = () => import('@/views/symbols/SymbolsList.vue');
 // const SymbolDetail = () => import('@/views/symbols/SymbolDetail.vue');
 // const PredictionsList = () => import('@/views/predictions/PredictionsList.vue');
@@ -20,7 +20,7 @@ const routes = [
     component: MainLayout,
     meta: { requiresAuth: true },
     children: [
-      // { path: '', name: 'dashboard', component: Dashboard, meta: { title: 'Dashboard', icon: 'dashboard' } },
+      { path: '', name: 'dashboard', component: Dashboard, meta: { title: 'Dashboard', icon: 'dashboard' } },
       // { path: 'symbols', name: 'symbols', component: SymbolsList, meta: { title: 'Symbols', icon: 'trending_up' } },
       // { path: 'symbols/:id', name: 'symbol-detail', component: SymbolDetail, meta: { title: 'Symbol Details', hideInMenu: true }, props: true },
       // { path: 'predictions', name: 'predictions', component: PredictionsList, meta: { title: 'Predictions', icon: 'insights' } },
