@@ -1,5 +1,5 @@
 # backend/app/db/models/symbol.py
-from sqlalchemy import Column, String, Integer, Boolean, UniqueConstraint, DateTime, ForeignKey, Index
+from sqlalchemy import Column, String, Integer, Boolean, UniqueConstraint, DateTime, Index
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -26,19 +26,6 @@ class Symbol(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    tenant_id = None
-
     # Relationships
     eod_data = relationship("EODData", back_populates="symbol")
-    predictions = relationship("Prediction", back_populates="symbol")
-    models = relationship("PredictionModel", back_populates="symbol")
-
-    @property
-    def is_equity(self):
-        """Check if symbol is an equity."""
-        return self.instrument_type == "EQUITY"
-
-    @property
-    def display_name(self):
-        """Return a display-friendly name."""
-        return f"{self.trading_symbol} ({self.exchange})"
+    predictions = relationship("Prediction")  # No back_populates

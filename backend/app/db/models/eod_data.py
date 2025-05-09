@@ -25,17 +25,5 @@ class EODData(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    tenant_id = None
-
     # Relationships
     symbol = relationship("Symbol", back_populates="eod_data")
-
-    @property
-    def hl_range(self):
-        """Calculate high-low range."""
-        return self.high - self.low
-
-    @property
-    def body_range(self):
-        """Calculate body range (close-open)."""
-        return abs(self.close - self.open)

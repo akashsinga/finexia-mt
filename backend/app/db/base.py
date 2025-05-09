@@ -12,12 +12,11 @@ class CustomBase:
 
     @declared_attr
     def tenant_id(cls):
-        # Skip tenant field for Tenant model itself
-        if cls.__name__ == "Tenant":
+        # Skip tenant field for specified tenant-agnostic models
+        tenant_agnostic_models = ["Tenant", "Symbol", "EODData", "FeatureData"]
+        if cls.__name__ in tenant_agnostic_models:
             return None
-        return Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+        return Column(Integer, ForeignKey("tenant.id"), nullable=False, index=True)
 
 
 Base = declarative_base(cls=CustomBase)
-
-from app.db.models import *
