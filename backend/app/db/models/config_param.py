@@ -9,6 +9,9 @@ DEFAULT_CONFIG = {
     "MODEL_TYPE": {"value": "lightgbm", "type": "str", "description": "Default model type for predictions"},
     "MIN_DAYS": {"value": 1, "type": "int", "description": "Minimum days to consider for predictions"},
     "CONFIDENCE_THRESHOLD": {"value": 0.5, "type": "float", "description": "Minimum confidence threshold for predictions"},
+    "TRAINING_FREQUENCY": {"value": "daily", "type": "str", "description": "Model training frequency"},
+    "CLIENT_ID": {"value": "", "type": "str", "description": "Client identifier for API calls"},
+    "API_KEY": {"value": "", "type": "str", "description": "API key for data import"},
 }
 
 

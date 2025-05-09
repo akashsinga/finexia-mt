@@ -12,7 +12,7 @@ class Tenant(Base):
     name = Column(String, unique=True, nullable=False)
     slug = Column(String, unique=True, nullable=False, index=True)
     plan = Column(String, default="basic")  # basic, premium, enterprise
-    max_symbols = Column(Integer, default=20)
+    max_symbols = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

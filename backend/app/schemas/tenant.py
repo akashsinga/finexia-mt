@@ -9,7 +9,7 @@ class TenantBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     slug: str = Field(..., min_length=2, max_length=50)
     plan: str = Field(default="basic")
-    max_symbols: int = Field(default=20, ge=1, le=1000)
+    max_symbols: Optional[int] = Field(default=None)
 
     @validator("slug")
     def validate_slug(cls, v):
