@@ -8,6 +8,11 @@ from app.config import settings
 from app.api.middleware.tenant import TenantMiddleware
 from app.api.routers import auth, users, tenants, symbols, config
 from app.websockets.router import router as websocket_router
+from app.db.base import Base
+from app.db.session import engine
+
+
+Base.metadata.create_all(bind=engine)
 
 
 @asynccontextmanager
@@ -26,7 +31,7 @@ async def lifespan(app: FastAPI):
             # Auto-initialize if configured
             from app.scripts.init_system import init_system
 
-            init_system(superadmin_username=os.environ.get("INIT_SUPERADMIN_USERNAME", "superadmin"), superadmin_email=os.environ.get("INIT_SUPERADMIN_EMAIL", "superadmin@finexia.com"), superadmin_password=os.environ.get("INIT_SUPERADMIN_PASSWORD", "changeme"))
+            init_system(superadmin_username=os.environ.get("INIT_SUPERADMIN_USERNAME", "admin"), superadmin_email=os.environ.get("INIT_SUPERADMIN_EMAIL", "akashsinga@gmail.com"), superadmin_password=os.environ.get("INIT_SUPERADMIN_PASSWORD", "password"))
     finally:
         db.close()
 

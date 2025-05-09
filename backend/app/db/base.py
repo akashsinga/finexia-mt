@@ -19,3 +19,5 @@ class CustomBase:
 
 
 Base = declarative_base(cls=CustomBase)
+
+from app.db.models import *
