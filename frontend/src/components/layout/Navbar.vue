@@ -3,8 +3,14 @@
   <nav class="navbar">
     <div class="navbar-left">
       <button type="button" class="sidebar-toggle" @click="toggleSidebar">
-        <i class="ri-menu-line text-xl"></i>
+        <i class="ph ph-list"></i>
       </button>
+
+      <!-- Add logo to navbar on mobile -->
+      <div class="navbar-logo md:hidden">
+        <img src="@/assets/images/favicon.svg" alt="Finexia" class="h-8 w-8">
+      </div>
+
       <div class="breadcrumb">
         <span class="breadcrumb-item">{{ pageTitle }}</span>
       </div>
@@ -14,7 +20,7 @@
       <!-- Notifications -->
       <div class="notification-bell">
         <button type="button" class="icon-button">
-          <i class="ri-notification-3-line"></i>
+          <i class="ph ph-bell"></i>
           <span class="notification-badge"></span>
         </button>
       </div>
@@ -23,14 +29,16 @@
       <div v-if="isSuperAdmin" class="tenant-selector">
         <button @click="toggleTenantDropdown" class="tenant-button">
           <span class="tenant-name">{{ currentTenantName }}</span>
-          <i class="ri-arrow-down-s-line"></i>
+          <i class="ph ph-caret-down"></i>
         </button>
 
         <div v-if="tenantDropdownOpen" class="dropdown tenant-dropdown">
           <div class="dropdown-header">Switch Tenant</div>
-          <div v-for="tenant in tenants" :key="tenant.slug" @click="switchToTenant(tenant.slug)" class="dropdown-item" :class="{ 'active': tenant.slug === selectedTenant }">
-            <span>{{ tenant.name }}</span>
-            <i v-if="tenant.slug === selectedTenant" class="ri-check-line text-success"></i>
+          <div class="dropdown-items">
+            <div v-for="tenant in tenants" :key="tenant.slug" @click="switchToTenant(tenant.slug)" class="dropdown-item" :class="{ 'active': tenant.slug === selectedTenant }">
+              <span>{{ tenant.name }}</span>
+              <i v-if="tenant.slug === selectedTenant" class="ph ph-check text-success"></i>
+            </div>
           </div>
         </div>
       </div>
@@ -38,17 +46,17 @@
       <!-- User Menu -->
       <div class="user-menu">
         <button type="button" class="user-menu-button" @click="toggleUserMenu">
-          <div class="user-avatar" :style="{ 'background-color': avatarColor }">
+          <div class="user-avatar sm" :style="{ 'background-color': avatarColor }">
             <span>{{ userInitials }}</span>
           </div>
           <span class="user-name">{{ username }}</span>
-          <i class="ri-arrow-down-s-line"></i>
+          <i class="ph ph-caret-down"></i>
         </button>
 
         <div v-if="userMenuOpen" class="dropdown user-dropdown">
           <div class="dropdown-header">
             <div class="user-info">
-              <div class="user-avatar large" :style="{ 'background-color': avatarColor }">
+              <div class="user-avatar lg" :style="{ 'background-color': avatarColor }">
                 <span>{{ userInitials }}</span>
               </div>
               <div class="user-details">
@@ -60,14 +68,14 @@
 
           <div class="dropdown-items">
             <a href="#" class="dropdown-item">
-              <i class="ri-user-line"></i> Profile
+              <i class="ph ph-user"></i> Profile
             </a>
             <a href="#" class="dropdown-item">
-              <i class="ri-settings-3-line"></i> Settings
+              <i class="ph ph-gear"></i> Settings
             </a>
             <div class="dropdown-divider"></div>
             <a href="#" class="dropdown-item text-danger" @click.prevent="logout">
-              <i class="ri-logout-box-line"></i> Logout
+              <i class="ph ph-sign-out"></i> Logout
             </a>
           </div>
         </div>
@@ -90,7 +98,7 @@ export default {
       userMenuOpen: false,
       tenantDropdownOpen: false,
       selectedTenant: null,
-      avatarColor: '#0284c7' // Default color
+      avatarColor: '#1E3A8A' // Default color (logo blue)
     };
   },
 
@@ -138,9 +146,6 @@ export default {
   mounted: function () {
     this.selectedTenant = this.authStore.currentTenant;
 
-    // Generate consistent avatar color based on username
-    this.generateAvatarColor();
-
     // Fetch tenants if user is superadmin
     if (this.authStore.isSuperAdmin) {
       this.tenantStore.fetchTenants();
@@ -185,17 +190,6 @@ export default {
       this.tenantDropdownOpen = false;
     },
 
-    generateAvatarColor: function () {
-      // Simple hash function to generate consistent color from username
-      const hash = this.username.split('').reduce((acc, char) => {
-        return char.charCodeAt(0) + ((acc << 5) - acc);
-      }, 0);
-
-      // Generate hue between 0 and 360
-      const hue = hash % 360;
-      this.avatarColor = `hsl(${hue}, 70%, 50%)`;
-    },
-
     logout: function () {
       this.authStore.logout();
     }
@@ -213,7 +207,11 @@ export default {
 }
 
 .sidebar-toggle {
-  @apply p-2 rounded-full text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors duration-200;
+  @apply p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:bg-opacity-50 focus:outline-none transition-colors duration-200;
+}
+
+.navbar-logo {
+  @apply mx-2;
 }
 
 .breadcrumb {
@@ -226,7 +224,7 @@ export default {
 }
 
 .tenant-button {
-  @apply flex items-center space-x-1 rounded-md py-1.5 px-3 text-sm font-medium text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors duration-200;
+  @apply flex items-center space-x-1 rounded-md py-1.5 px-3 text-sm font-medium text-gray-600 hover:bg-gray-50 focus:outline-none transition-colors duration-200;
 }
 
 .tenant-name {
@@ -243,7 +241,7 @@ export default {
 }
 
 .user-menu-button {
-  @apply flex items-center space-x-2 rounded-full py-1 pl-1 pr-2 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors duration-200;
+  @apply flex items-center space-x-2 rounded-full py-1 pl-1 pr-2 hover:bg-gray-50 focus:outline-none transition-colors duration-200;
 }
 
 .user-name {

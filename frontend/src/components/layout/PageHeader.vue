@@ -14,10 +14,10 @@
       </div>
       <div class="header-actions" v-else-if="defaultActions">
         <button v-if="refreshAction" @click="$emit('refresh')" class="btn btn-secondary btn-sm">
-          <i class="ri-refresh-line mr-1"></i> Refresh
+          <i class="ph ph-arrow-clockwise mr-1"></i> Refresh
         </button>
         <button v-if="addAction" @click="$emit('add')" class="btn btn-primary btn-sm">
-          <i class="ri-add-line mr-1"></i> {{ addLabel }}
+          <i class="ph ph-plus mr-1"></i> {{ addLabel }}
         </button>
       </div>
     </div>
@@ -26,7 +26,7 @@
     <div class="header-tabs" v-if="tabs && tabs.length">
       <nav class="tabs-nav">
         <router-link v-for="tab in tabs" :key="tab.route" :to="tab.route" class="tab-item" :class="{ 'active': isActiveTab(tab.route) }">
-          <i v-if="tab.icon" :class="`ri-${tab.icon}-line mr-1.5`"></i>
+          <i v-if="tab.icon" :class="`ph ph-${tab.icon} mr-1.5`"></i>
           {{ tab.label }}
           <span v-if="tab.count" class="tab-badge">{{ formatCount(tab.count) }}</span>
         </router-link>
@@ -71,7 +71,7 @@ export default {
     },
     tabs: {
       type: Array,
-      default: () => []
+      default: function () { return []; }
     }
   },
 
@@ -130,7 +130,7 @@ export default {
 }
 
 .tab-item.active {
-  @apply border-primary-600 text-primary-600;
+  @apply border-indigo-600 text-indigo-600;
 }
 
 .tab-badge {
@@ -139,18 +139,5 @@ export default {
 
 .header-filters {
   @apply flex flex-wrap items-center gap-3 mt-4 bg-gray-50 p-3 rounded-lg;
-}
-
-/* Hide scrollbar for tabs but allow scrolling */
-.scrollbar-none {
-  -ms-overflow-style: none;
-  /* IE and Edge */
-  scrollbar-width: none;
-  /* Firefox */
-}
-
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
-  /* Chrome, Safari, Opera */
 }
 </style>

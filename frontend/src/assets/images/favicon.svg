@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background - rounded -->
+  <rect width="100" height="100" rx="25" fill="#1E3A8A"/>
+  
+  <!-- Uptrend line - larger -->
+  <path d="M10,75 L35,55 L60,65 L90,30" stroke="#4ADE80" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Downtrend line - larger -->
+  <path d="M10,30 L35,45 L60,35 L90,75" stroke="#EF4444" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Dots at the end of trend lines - larger -->
+  <circle cx="90" cy="30" r="7" fill="#4ADE80"/>
+  <circle cx="90" cy="75" r="7" fill="#EF4444"/>
+</svg>
