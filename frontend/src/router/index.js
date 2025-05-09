@@ -3,7 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 // import MainLayout from '@/layouts/MainLayout.vue';
 
 // Lazy-load all views
-const Login = () => import('@/views/auth/Login.vue');
+// const Login = () => import('@/views/auth/Login.vue');
 // const Dashboard = () => import('@/views/dashboard/Dashboard.vue');
 // const SymbolsList = () => import('@/views/symbols/SymbolsList.vue');
 // const SymbolDetail = () => import('@/views/symbols/SymbolDetail.vue');
