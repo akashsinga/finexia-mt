@@ -10,7 +10,9 @@ from app.api.routers import auth, users, tenants, symbols, config, system
 from app.websockets.router import router as websocket_router
 from app.db.base import Base
 from app.db.session import engine
+from app.core.logger import get_logger
 
+logger = get_logger(__name__)
 
 Base.metadata.create_all(bind=engine)
 
@@ -18,7 +20,7 @@ Base.metadata.create_all(bind=engine)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Initialize features, connections
-    print(f"Starting {settings.APP_NAME} API Server")
+    logger.info(f"Starting {settings.APP_NAME} API Server")
 
     # Check if system is initialized
     from app.db.session import SessionLocal
@@ -27,18 +29,18 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         superadmin_exists = db.query(User).filter(User.is_superadmin == True).first() is not None
-        if not superadmin_exists and os.environ.get("AUTO_INIT") == "true":
+        if not superadmin_exists:
             # Auto-initialize if configured
             from app.scripts.init_system import init_system
 
-            init_system(superadmin_username=os.environ.get("INIT_SUPERADMIN_USERNAME", "admin"), superadmin_email=os.environ.get("INIT_SUPERADMIN_EMAIL", "akashsinga@gmail.com"), superadmin_password=os.environ.get("INIT_SUPERADMIN_PASSWORD", "password"))
+            init_system(superadmin_username=os.environ.get("INIT_SUPERADMIN_USERNAME", "superadmin"), superadmin_email=os.environ.get("INIT_SUPERADMIN_EMAIL", "akashsinga@gmail.com"), superadmin_password=os.environ.get("INIT_SUPERADMIN_PASSWORD", "password"))
     finally:
         db.close()
 
     yield
 
     # Shutdown code
-    print(f"Shutting down {settings.APP_NAME} API Server")
+    logger.info(f"Shutting down {settings.APP_NAME} API Server")
 
 
 # Initialize FastAPI app with lifespan

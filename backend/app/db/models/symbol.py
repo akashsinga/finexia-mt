@@ -8,8 +8,8 @@ from app.db.base import Base
 class Symbol(Base):
     __tablename__ = "symbols"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "trading_symbol", "exchange", name="unique_tenant_symbol_exchange"),
-        Index("idx_symbol_tenant_active", "tenant_id", "active"),
+        UniqueConstraint("trading_symbol", "exchange", name="unique_symbol_exchange"),
+        Index("idx_symbol_active", "active"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -26,7 +26,7 @@ class Symbol(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # tenant_id comes from Base class
+    tenant_id = None
 
     # Relationships
     eod_data = relationship("EODData", back_populates="symbol")

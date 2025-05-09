@@ -12,9 +12,9 @@ asyncpg>=0.28.0
 
 # Auth
 python-jose>=3.3.0
-passlib>=1.7.4
+passlib==1.7.4
+bcrypt==3.2.2
 python-multipart>=0.0.6
-bcrypt>=4.0.1
 
 # ML/Data processing
 pandas>=2.1.0
