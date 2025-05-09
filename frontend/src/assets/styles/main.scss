@@ -1,0 +1,65 @@
+/* src/assets/main.scss */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles */
+@layer base {
+  h1 {
+    @apply text-2xl font-bold mb-4;
+  }
+
+  h2 {
+    @apply text-xl font-bold mb-3;
+  }
+
+  h3 {
+    @apply text-lg font-bold mb-2;
+  }
+}
+
+/* Custom components */
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded font-medium focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+
+  .form-input {
+    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500;
+  }
+}
+
+/* Now you can use SCSS features like nesting */
+.dashboard {
+  .stat-card {
+    @apply bg-white rounded-lg shadow p-4;
+
+    &__title {
+      @apply text-gray-500 text-sm font-semibold;
+    }
+
+    &__value {
+      @apply text-2xl font-bold mt-1;
+    }
+
+    &--primary {
+      @apply border-l-4 border-primary-500;
+    }
+  }
+}
+
+.sidebar {
+  @apply bg-gray-800 text-white;
+
+  &__item {
+    @apply py-2 px-4 hover:bg-gray-700;
+
+    &--active {
+      @apply bg-gray-700 font-bold;
+    }
+  }
+}
