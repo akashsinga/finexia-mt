@@ -20,7 +20,7 @@ export const useTenantStore = defineStore('tenant', {
   },
 
   actions: {
-    async fetchTenants() {
+    fetchTenants: async function () {
       const authStore = useAuthStore();
 
       // Only superadmins can list all tenants
@@ -43,7 +43,7 @@ export const useTenantStore = defineStore('tenant', {
       }
     },
 
-    async fetchCurrentTenant() {
+    fetchCurrentTenant: async function () {
       const authStore = useAuthStore();
       const tenantSlug = authStore.tenant;
 
@@ -58,12 +58,7 @@ export const useTenantStore = defineStore('tenant', {
       try {
         // For a regular user, we need to get tenant info from the system endpoint
         const response = await api.get('/system/status');
-        this.currentTenant = {
-          id: response.data.tenant_id,
-          name: response.data.tenant_name,
-          slug: tenantSlug,
-          plan: response.data.tenant_plan || 'basic',
-        };
+        this.currentTenant = { id: response.data.tenant_id, name: response.data.tenant_name, slug: tenantSlug, plan: response.data.tenant_plan || 'basic', };
         return this.currentTenant;
       } catch (error) {
         this.error = error.response?.data?.detail || 'Failed to fetch tenant info';
@@ -73,7 +68,7 @@ export const useTenantStore = defineStore('tenant', {
       }
     },
 
-    async switchTenant(tenantSlug) {
+    switchTenant: async function (tenantSlug) {
       const authStore = useAuthStore();
 
       if (!tenantSlug) {
@@ -93,7 +88,7 @@ export const useTenantStore = defineStore('tenant', {
       return true;
     },
 
-    clearError() {
+    clearError: function () {
       this.error = null;
     }
   }

@@ -35,12 +35,99 @@
   @apply absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-500 focus:outline-none transition-colors duration-200 cursor-pointer;
 }
 
+/* Textarea styling */
+.form-textarea {
+  @apply w-full py-2 px-4 ring-1 ring-gray-200 rounded-lg focus:ring-blue-400 outline-none border-none transition-all duration-500 text-sm resize-none;
+}
+
+/* Native select styling */
+.form-select {
+  @apply w-full py-2 pl-10 pr-10 ring-1 ring-gray-200 rounded-lg focus:ring-blue-400 outline-none border-none transition-all duration-500 text-sm bg-white appearance-none;
+}
+
 /* Checkbox styling */
 .form-checkbox {
   @apply w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500;
 }
 
-/* Button styling - Primary */
+/* Radio button styling */
+.form-radio {
+  @apply w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300;
+}
+
+/* File upload styling */
+.form-file {
+  @apply block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100;
+}
+
+/* Range input styling */
+.form-range {
+  @apply w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer;
+}
+
+.form-range::-webkit-slider-thumb {
+  @apply w-4 h-4 bg-blue-600 rounded-full appearance-none;
+}
+
+/* Toggle switch */
+.form-switch {
+  @apply relative inline-flex items-center h-5 w-10 cursor-pointer;
+}
+
+.form-switch input {
+  @apply sr-only;
+}
+
+.form-switch-slider {
+  @apply bg-gray-300 rounded-full w-full h-full transition-colors duration-200;
+}
+
+.form-switch-thumb {
+  @apply absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-200;
+}
+
+input:checked+.form-switch-slider {
+  @apply bg-blue-500;
+}
+
+input:checked+.form-switch-slider .form-switch-thumb {
+  @apply translate-x-5;
+}
+
+/* Tag input / multiselect styling */
+.form-multiselect {
+  @apply flex flex-wrap gap-2 items-center w-full py-2 px-3 ring-1 ring-gray-200 rounded-lg focus-within:ring-blue-400 transition-all duration-500 text-sm;
+}
+
+.form-tag {
+  @apply bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded;
+}
+
+.form-tag-remove {
+  @apply ml-1 text-blue-500 hover:text-blue-700 cursor-pointer;
+}
+
+/* Search field with optional spinner */
+.form-search {
+  @apply form-input pl-10 pr-10;
+}
+
+.search-loading {
+  @apply absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 animate-spin;
+}
+
+/* Date & time inputs */
+.form-date,
+.form-time {
+  @apply form-input text-gray-700 placeholder-gray-400;
+}
+
+/* OTP / pin code inputs */
+.form-otp-input {
+  @apply w-10 h-10 text-center text-lg ring-1 ring-gray-300 rounded focus:ring-blue-500 outline-none transition-all;
+}
+
+/* Buttons - Primary */
 .form-button {
   @apply w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center h-10 font-medium transition-colors duration-200 text-sm;
 }
@@ -60,4 +147,9 @@
 .form-button-secondary:disabled,
 .form-button-outline:disabled {
   @apply opacity-70 cursor-not-allowed;
+}
+
+/* Error message */
+.form-error {
+  @apply mt-1 text-xs text-red-500;
 }
