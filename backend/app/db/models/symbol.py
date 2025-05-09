@@ -31,6 +31,7 @@ class Symbol(Base):
     # Relationships
     eod_data = relationship("EODData", back_populates="symbol")
     predictions = relationship("Prediction", back_populates="symbol")
+    models = relationship("PredictionModel", back_populates="symbol")
 
     @property
     def is_equity(self):
