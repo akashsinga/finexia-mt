@@ -10,7 +10,7 @@ from app.db.models.prediction import Prediction
 from app.db.models.symbol import Symbol
 from app.db.models.tenant import Tenant
 from app.schemas.system import SystemStatusResponse, PipelineRunRequest, PipelineRunResponse
-from app.api.deps import get_current_tenant, get_current_user, get_current_active_admin
+from app.api.deps import get_current_tenant, get_current_user, get_current_active_admin, get_current_superadmin
 from app.services.pipeline_service import run_pipeline, get_pipeline_status
 
 router = APIRouter()
@@ -52,3 +52,20 @@ async def trigger_pipeline(background_tasks: BackgroundTasks, request: PipelineR
 async def get_pipeline_current_status(db: Session = Depends(get_db_session), tenant=Depends(get_current_tenant), current_user=Depends(get_current_user)):
     """Get current pipeline status"""
     return get_pipeline_status(tenant.id)
+
+
+# Add this to routers/system.py or create a new admin router
+
+
+@router.get("/websocket_stats", response_model=Dict[str, Any])
+async def get_websocket_stats(db: Session = Depends(get_db_session), current_user=Depends(get_current_superadmin)):
+    """Get WebSocket connection statistics"""
+    from app.websockets.connection_manager import connection_manager
+
+    # Get basic stats and detailed connection info
+    stats = connection_manager.get_detailed_stats()
+
+    # Add system health info
+    stats["system_health"] = {"server_time": datetime.now(), "websocket_service": "online"}
+
+    return stats
