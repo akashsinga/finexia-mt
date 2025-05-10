@@ -2,7 +2,7 @@
   <div class="stat-card">
     <div class="card-content">
       <div class="stat-icon" :class="iconBackground">
-        <i class="ph" :class="[icon]"></i>
+        <i class="ph text-2xl" :class="[icon]"></i>
       </div>
       <div class="stat-info">
         <div class="stat-label">{{ label }}</div>
