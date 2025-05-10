@@ -20,9 +20,10 @@ class ModelStatusEnum(str, Enum):
 
 
 class ModelRequest(BaseModel):
-    symbol_id: int
+    symbols: Optional[List[int]] = None # List of specific symbol id(s) to train
     model_type: ModelTypeEnum = ModelTypeEnum.LIGHTGBM
-    parameters: Optional[Dict[str, Any]] = None
+    is_active: bool = True
+    fo_eligible: bool = True
 
 
 class ModelStatus(BaseModel):

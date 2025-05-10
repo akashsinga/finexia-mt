@@ -12,11 +12,17 @@ from sqlalchemy import text
 from app.db.session import get_db_session
 from app.db.models.symbol import Symbol
 from app.db.models.tenant import Tenant
+from app.db.models.user import User
 from app.db.models.model_performance import ModelPerformance
 from app.core.config import get_model_path, get_model_params, LIGHTGBM, RANDOM_FOREST, XGBOOST
 from app.core.logger import get_logger
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from app.services.config_service import get_tenant_config
+from app.services.symbol_service import get_tenant_watchlist
+from app.api.deps import get_current_user
+from app.schemas.model import ModelRequest
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = get_logger(__name__)
 
@@ -94,7 +100,7 @@ def prepare_data_for_training(symbol_id: int, tenant_id: int = None) -> Tuple[pd
             max_days = get_tenant_config(session, tenant_id, "MAX_DAYS")
             if config_threshold:
                 threshold_percent = float(config_threshold)
-                
+
             if max_days:
                 max_days = int(max_days)
 
@@ -313,7 +319,7 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int) -> Dict[str, Any]:
         session.close()
 
 
-def train_models_for_tenant(tenant_id: int, symbol_ids: Optional[List[int]] = None) -> Dict[int, Dict[str, Any]]:
+def train_models_for_tenant(tenant_id: int, request: ModelRequest, current_user: Optional[User] = None) -> Dict[int, Dict[str, Any]]:
     """Train models for all specified symbols for a tenant."""
     session = next(get_db_session())
     results = {}
@@ -321,24 +327,44 @@ def train_models_for_tenant(tenant_id: int, symbol_ids: Optional[List[int]] = No
     try:
         # Get tenant info
         tenant = session.query(Tenant).filter(Tenant.id == tenant_id).first()
+
         if not tenant:
             logger.error(f"Tenant {tenant_id} not found")
             return results
 
         # Get symbols for tenant if not provided
-        if not symbol_ids:
+        if not request.symbols:
             # Get tenant's watchlist symbols
-            from app.services.symbol_service import get_tenant_watchlist
-
-            watchlist = get_tenant_watchlist(session, tenant_id, active_only=True)
-            symbol_ids = [item["symbol_id"] for item in watchlist]
+            if current_user and current_user.is_superadmin:
+                symbols = session.query(Symbol).all()
+                if request.is_active:
+                    symbols = symbols.filter(Symbol.active)
+                if request.fo_eligible:
+                    symbols = symbols.filter(Symbol.fo_eligible)
+                symbol_ids = [item["id"] for item in symbols]
+            else:
+                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible = True)
+                symbol_ids = [item["symbol_id"] for item in watchlist]
 
         logger.info(f"Training models for tenant {tenant_id}: {len(symbol_ids)} symbols")
+        
+        num_workers = min(32, multiprocessing.cpu_count() * 2)
 
-        # Train models for each symbol
-        for symbol_id in symbol_ids:
-            result = train_model_for_symbol(tenant_id, symbol_id)
-            results[symbol_id] = result
+        def worker(symbol_id):
+            local_db = next(get_db_session())
+            try:
+                return symbol_id, train_model_for_symbol(symbol_id, tenant_id, local_db)
+            except Exception as e:
+                logger.error(f"Training failed for symbol {symbol_id}: {e}")
+                return symbol_id, {"status": "error", "message": str(e)}
+            finally:
+                local_db.close()
+
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = {executor.submit(worker, sid): sid for sid in symbol_ids}
+            for future in as_completed(futures):
+                sid, result = future.result()
+                results[sid] = result
 
         # Log summary
         success_count = sum(1 for r in results.values() if r.get("status") == "success")

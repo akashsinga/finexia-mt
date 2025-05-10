@@ -40,12 +40,15 @@ def search_symbols(db: Session, search_term: str, active_only: bool = True) -> L
 
 
 # Watchlist Management
-def get_tenant_watchlist(db: Session, tenant_id: int, active_only: bool = True) -> List[Dict[str, Any]]:
+def get_tenant_watchlist(db: Session, tenant_id: int, active_only: bool = True, fo_eligible = False) -> List[Dict[str, Any]]:
     """Get symbols in tenant's watchlist"""
     query = db.query(Symbol, TenantSymbol).join(TenantSymbol, Symbol.id == TenantSymbol.symbol_id).filter(TenantSymbol.tenant_id == tenant_id)
 
     if active_only:
         query = query.filter(Symbol.active == True, TenantSymbol.is_active == True)
+    
+    if fo_eligible:
+        query = query.filter(Symbol.fo_eligible)
 
     query = query.order_by(TenantSymbol.priority.desc(), Symbol.trading_symbol)
 

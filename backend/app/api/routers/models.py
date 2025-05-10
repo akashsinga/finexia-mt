@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db_session
 from app.schemas.model import ModelRequest, ModelStatus, ModelsList, ModelTrainingResponse, ModelTypeEnum, ModelStatusEnum
 from app.api.deps import get_current_tenant, get_current_user, get_current_active_admin
+from app.core.train.daily_trainer import train_models_for_tenant
 
 router = APIRouter()
 
@@ -28,8 +29,10 @@ async def train_model(background_tasks: BackgroundTasks, request: ModelRequest, 
     # 2. Check if training is allowed (e.g., rate limits)
     # 3. Start a background task to train the model
 
+    background_tasks.add_task(train_models_for_tenant, tenant.id, request, current_user)
+
     # Placeholder for now
-    return ModelTrainingResponse(message="Model training started", model_id=1, status="training", estimated_completion=datetime.now() + timedelta(minutes=5))
+    return ModelTrainingResponse(message="Model training started", model_id=0, status="training", estimated_completion=datetime.now() + timedelta(minutes=5))
 
 
 @router.get("/{model_id}", response_model=ModelStatus)
