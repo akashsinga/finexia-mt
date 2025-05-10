@@ -1,9 +1,10 @@
-# backend/app/schemas/symbol.py
+# app/schemas/symbol.py
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, List
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 
+# Base symbol model
 class SymbolBase(BaseModel):
     trading_symbol: str = Field(..., min_length=1, max_length=20)
     exchange: str = Field(..., min_length=1, max_length=10)
@@ -14,22 +15,11 @@ class SymbolBase(BaseModel):
     fo_eligible: bool = False
 
 
-class SymbolCreate(SymbolBase):
-    security_id: str = Field(..., min_length=1)
-
-
-class SymbolUpdate(BaseModel):
-    name: Optional[str] = None
-    active: Optional[bool] = None
-    fo_eligible: Optional[bool] = None
-    lot_size: Optional[int] = None
-
-
-class SymbolInDB(SymbolBase):
+# Response model for a single symbol
+class SymbolResponse(SymbolBase):
     id: int
     security_id: str
     active: bool
-    tenant_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -37,22 +27,13 @@ class SymbolInDB(SymbolBase):
         from_attributes = True
 
 
-class SymbolStatsResponse(BaseModel):
-    total_symbols: int
-    active_symbols: int
-    inactive_symbols: int
-    fo_eligible_count: int
-    symbols_by_exchange: Dict[str, int]
-    recent_updates: int
+# Response model for a list of symbols
+class SymbolList(BaseModel):
+    symbols: List[SymbolResponse]
+    count: int
 
 
-class SymbolResponse(SymbolInDB):
-    pass
-
-
-# Update in app/schemas/symbol.py
-
-
+# Models for statistics
 class PopularSymbol(BaseModel):
     symbol_id: int
     trading_symbol: str

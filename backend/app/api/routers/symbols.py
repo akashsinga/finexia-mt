@@ -19,7 +19,7 @@ symbol_import_status = {}
 
 # Symbol Access (All Users)
 @router.get("", response_model=SymbolList)
-async def list_symbols(active_only: bool = Query(True, description="Only show active symbols"), fo_eligible: Optional[bool] = Query(None, description="Filter by F&O eligibility"), skip: int = Query(0, description="Number of records to skip"), limit: int = Query(100, description="Maximum number of records to return"), db: Session = Depends(get_db_session), current_user=Depends(get_current_user)):
+async def list_symbols(active_only: bool = Query(True, description="Only show active symbols"), fo_eligible: Optional[bool] = Query(None, description="Filter by F&O eligibility"), skip: int = Query(0, description="Number of records to skip"), limit: int = Query(None, description="Maximum number of records to return"), db: Session = Depends(get_db_session), current_user=Depends(get_current_user)):
     """List all symbols with filtering options"""
     symbols = get_symbols(db, active_only, fo_eligible, skip, limit)
     return SymbolList(symbols=symbols, count=len(symbols))
