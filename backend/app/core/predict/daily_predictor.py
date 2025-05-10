@@ -14,7 +14,8 @@ from app.db.session import get_db_session, SessionLocal
 from app.db.models.prediction import Prediction
 from app.db.models.symbol import Symbol
 from app.db.models.tenant import Tenant
-from app.core.config import get_model_path, get_model_config
+from app.core.config import get_model_path
+from app.services.config_service import get_tenant_config
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -193,8 +194,15 @@ def predict_for_one_symbol(tenant_id: int, symbol_id: int) -> bool:
         # Direction prediction (only if move confidence is high enough)
         direction_prediction = None
         direction_confidence = None
+        
+        move_confidence_threshold = 0.5
+        
+        if tenant_id:
+            move_confidence_threshold = get_tenant_config(session, tenant_id, "STRONG_MOVE_CONFIDENCE_THRESHOLD")
+            if move_confidence_threshold:
+                move_confidence_threshold = float(move_confidence_threshold)
 
-        if strong_move_confidence >= STRONG_MOVE_CONFIDENCE_THRESHOLD:
+        if strong_move_confidence >= move_confidence_threshold:
             direction_model_data = load_model_data(tenant_id, symbol_id, "direction")
             if direction_model_data:
                 try:

@@ -13,9 +13,10 @@ from app.db.session import get_db_session
 from app.db.models.symbol import Symbol
 from app.db.models.tenant import Tenant
 from app.db.models.model_performance import ModelPerformance
-from app.core.config import get_model_path, get_model_params, LIGHTGBM, XGBOOST, RANDOM_FOREST
+from app.core.config import get_model_path, get_model_params, LIGHTGBM, RANDOM_FOREST, XGBOOST
 from app.core.logger import get_logger
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from app.services.config_service import get_tenant_config
 
 logger = get_logger(__name__)
 
@@ -87,15 +88,18 @@ def prepare_data_for_training(symbol_id: int, tenant_id: int = None) -> Tuple[pd
 
         # Get threshold from tenant config or use default
         threshold_percent = 3.0  # Default
+        max_days = 5
         if tenant_id:
-            from app.services.config_service import get_tenant_config
-
             config_threshold = get_tenant_config(session, tenant_id, "STRONG_MOVE_THRESHOLD")
+            max_days = get_tenant_config(session, tenant_id, "MAX_DAYS")
             if config_threshold:
                 threshold_percent = float(config_threshold)
+                
+            if max_days:
+                max_days = int(max_days)
 
         # Process data for training
-        return process_training_data(features_df, closes_df, threshold_percent)
+        return process_training_data(features_df, closes_df, threshold_percent, max_days)
 
     except Exception as e:
         logger.error(f"Error preparing training data: {e}")
@@ -104,7 +108,7 @@ def prepare_data_for_training(symbol_id: int, tenant_id: int = None) -> Tuple[pd
         session.close()
 
 
-def process_training_data(features_df: pd.DataFrame, closes_df: pd.DataFrame, threshold_percent: float) -> Tuple[pd.DataFrame, List[str]]:
+def process_training_data(features_df: pd.DataFrame, closes_df: pd.DataFrame, threshold_percent: float, max_days: int) -> Tuple[pd.DataFrame, List[str]]:
     """Process data for model training."""
     if features_df.empty or closes_df.empty:
         return pd.DataFrame(), []
@@ -116,9 +120,9 @@ def process_training_data(features_df: pd.DataFrame, closes_df: pd.DataFrame, th
     # Merge data
     df = pd.merge(features_df, closes_df, on=["symbol_id", "date"])
 
-    # Calculate forward returns (5-day window)
-    df["future_max"] = df.groupby("symbol_id")["close"].transform(lambda x: x.rolling(5, min_periods=1).max().shift(-5))
-    df["future_min"] = df.groupby("symbol_id")["close"].transform(lambda x: x.rolling(5, min_periods=1).min().shift(-5))
+    # Calculate forward returns (max-day window)
+    df["future_max"] = df.groupby("symbol_id")["close"].transform(lambda x: x.rolling(max_days, min_periods=1).max().shift(-max_days))
+    df["future_min"] = df.groupby("symbol_id")["close"].transform(lambda x: x.rolling(max_days, min_periods=1).min().shift(-max_days))
 
     # Calculate percentage moves
     df["up_move_pct"] = (df["future_max"] - df["close"]) / df["close"] * 100
@@ -229,6 +233,10 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int) -> Dict[str, Any]:
 
         # Get model parameters for tenant
         model_type = LIGHTGBM  # Default model type
+
+        if tenant_id:
+            model_type = get_tenant_config(session, tenant_id, "MODEL_TYPE")
+
         move_model = get_classifier(model_type, tenant_id, session)
 
         # Train move model
