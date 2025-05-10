@@ -27,7 +27,7 @@ CV_N_SPLITS = 3
 CV_TEST_SIZE = 0.2
 
 # Default hyperparameters (fallbacks if not in config table)
-DEFAULT_PARAMS = {LIGHTGBM: {"n_estimators": 100, "learning_rate": 0.1, "max_depth": 6, "num_leaves": 31, "min_child_weight": 3, "colsample_bytree": 0.8, "subsample": 0.8, "random_state": 42, "n_jobs": -1, "importance_type": "gain"}, XGBOOST: {"n_estimators": 100, "learning_rate": 0.1, "max_depth": 6, "gamma": 0.1, "min_child_weight": 3, "colsample_bytree": 0.8, "subsample": 0.8, "random_state": 42, "n_jobs": -1, "importance_type": "gain"}, RANDOM_FOREST: {"n_estimators": 100, "max_depth": 8, "min_samples_split": 5, "min_samples_leaf": 2, "max_features": "sqrt", "random_state": 42, "class_weight": "balanced", "n_jobs": -1}}
+DEFAULT_PARAMS = {LIGHTGBM: {"n_estimators": 100, "learning_rate": 0.1, "max_depth": 6, "num_leaves": 31, "min_child_weight": 5, "min_data_in_leaf": 10, "colsample_bytree": 0.8, "subsample": 0.8, "random_state": 42, "n_jobs": -1, "importance_type": "gain"}, XGBOOST: {"n_estimators": 100, "learning_rate": 0.1, "max_depth": 6, "gamma": 0.1, "min_child_weight": 3, "colsample_bytree": 0.8, "subsample": 0.8, "random_state": 42, "n_jobs": -1, "importance_type": "gain"}, RANDOM_FOREST: {"n_estimators": 100, "max_depth": 8, "min_samples_split": 5, "min_samples_leaf": 2, "max_features": "sqrt", "random_state": 42, "class_weight": "balanced", "n_jobs": -1}}
 
 
 def get_tenant_model_dir(tenant) -> Path:
@@ -111,6 +111,7 @@ def get_model_params(model_type: str, db: Session = None, tenant_id: Optional[in
     """
     # Start with default parameters
     params = DEFAULT_PARAMS.get(model_type, {}).copy()
+    params["verbose"] = -1
 
     # If db and tenant_id provided, check for custom hyperparameters in config
     if db and tenant_id:

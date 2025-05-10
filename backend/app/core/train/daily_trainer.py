@@ -45,6 +45,10 @@ def get_classifier(classifier_name: str, tenant_id: int = None, db: Session = No
         elif classifier_name == LIGHTGBM:
             from lightgbm import LGBMClassifier
 
+            # Remove early_stopping_round if present as it requires eval set
+            if params and "early_stopping_round" in params:
+                del params["early_stopping_round"]
+
             return LGBMClassifier(**(params or {}))
 
         else:
@@ -173,25 +177,63 @@ def select_features(X: pd.DataFrame, y: pd.Series, max_features: int = 10) -> Li
 def record_model_performance(session: Session, tenant_id: int, symbol_id: int, model_type: str, metrics: Dict[str, float], selected_features: List[str]):
     """Record model performance in database."""
     try:
-        # Find existing performance record or create new one
-        existing = session.query(ModelPerformance).filter(ModelPerformance.tenant_id == tenant_id, ModelPerformance.symbol_id == symbol_id, ModelPerformance.model_type == model_type, ModelPerformance.training_date == datetime.now().date()).first()
+        # Find or create model entry
+        from app.db.models.prediction_model import PredictionModel
 
-        performance = existing or ModelPerformance(tenant_id=tenant_id, symbol_id=symbol_id, model_type=model_type, training_date=datetime.now().date())
+        model = session.query(PredictionModel).filter(PredictionModel.tenant_id == tenant_id, PredictionModel.symbol_id == symbol_id, PredictionModel.model_type == model_type, PredictionModel.is_active == True).first()
 
-        # Update fields
-        performance.evaluation_date = datetime.now().date()
-        performance.accuracy = metrics.get("accuracy", 0)
-        performance.precision = metrics.get("precision", 0)
-        performance.recall = metrics.get("recall", 0)
-        performance.f1_score = metrics.get("f1", 0)
+        if not model:
+            # Create new model entry
+            model = PredictionModel(tenant_id=tenant_id, symbol_id=symbol_id, name=f"{model_type}_model_{symbol_id}", model_type=model_type, is_active=True, version=datetime.now().strftime("%Y%m%d"), current_accuracy=metrics.get("accuracy", 0))
+            session.add(model)
+            session.flush()
 
-        # Handle features
-        performance.effective_features = json.dumps(selected_features)
+        # Find or create performance record
+        performance = session.query(ModelPerformance).filter(ModelPerformance.tenant_id == tenant_id, ModelPerformance.model_id == model.id, ModelPerformance.evaluation_date == datetime.now().date()).first()
 
-        # Set counts
+        if not performance:
+            performance = ModelPerformance(tenant_id=tenant_id, model_id=model.id, evaluation_date=datetime.now().date())
+
+        # Convert numpy types to Python native types
+        def convert_to_python_type(value):
+            if value is None:
+                return None
+            if hasattr(value, "item"):  # Check if it's a numpy type
+                return value.item()  # Convert numpy scalar to Python scalar
+            return float(value) if isinstance(value, (float, int)) else value
+
+        # Update all available metrics
+        performance.accuracy = convert_to_python_type(metrics.get("accuracy", 0))
+        performance.precision = convert_to_python_type(metrics.get("precision", 0))
+        performance.recall = convert_to_python_type(metrics.get("recall", 0))
+        performance.f1_score = convert_to_python_type(metrics.get("f1", 0))
+        performance.roc_auc = convert_to_python_type(metrics.get("roc_auc", None))
+
+        # Additional metrics if available
+        performance.mse = convert_to_python_type(metrics.get("mse", None))
+        performance.rmse = convert_to_python_type(metrics.get("rmse", None))
+        performance.mae = convert_to_python_type(metrics.get("mae", None))
+        performance.r2 = convert_to_python_type(metrics.get("r2", None))
+
+        # Sample counts
+        y_train = metrics.get("y_train", [])
         y_test = metrics.get("y_test", [])
-        performance.predictions_count = len(y_test) if hasattr(y_test, "__len__") else 100
-        performance.successful_count = int(performance.accuracy * performance.predictions_count)
+        performance.train_samples = len(y_train) if hasattr(y_train, "__len__") else 0
+        performance.test_samples = len(y_test) if hasattr(y_test, "__len__") else 0
+
+        # Training time
+        performance.training_time_seconds = convert_to_python_type(metrics.get("training_time", None))
+
+        # Configuration info
+        performance.config_hash = metrics.get("config_hash", model_type + "_" + datetime.now().strftime("%Y%m%d"))
+
+        # Convert params dictionary to handle numpy types
+        params = metrics.get("params", {})
+        python_params = {}
+        for k, v in params.items():
+            python_params[k] = convert_to_python_type(v)
+
+        performance.hyperparameters = json.dumps({"model_type": model_type, "features": selected_features, "feature_count": len(selected_features), "params": python_params})
 
         session.add(performance)
         session.commit()
@@ -213,7 +255,7 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -
         symbol = session.query(Symbol).filter(Symbol.id == symbol_id).first()
 
         if not tenant or not symbol:
-            logger.error(f"Tenant {tenant_id} or symbol {symbol.trading_symbol} not found")
+            logger.error(f"Tenant {tenant_id} or symbol {symbol_id} not found")
             return {"status": "error", "message": "Tenant or symbol not found"}
 
         # Get training data
@@ -241,17 +283,38 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -
         model_type = LIGHTGBM  # Default model type
 
         if tenant_id:
-            model_type = get_tenant_config(session, tenant_id, "MODEL_TYPE")
-
-        move_model = get_classifier(model_type, tenant_id, session)
+            config_model_type = get_tenant_config(session, tenant_id, "MODEL_TYPE")
+            if config_model_type:
+                model_type = config_model_type
 
         # Train move model
+        move_train_start = datetime.now()
         logger.info(f"Training move model for tenant {tenant_id}, symbol {symbol.trading_symbol}")
+
+        move_model = get_classifier(model_type, tenant_id, session)
         move_model.fit(X_train, y_train)
+
+        move_train_duration = (datetime.now() - move_train_start).total_seconds()
 
         # Calculate metrics
         move_preds = move_model.predict(X_test)
-        metrics = {"accuracy": accuracy_score(y_test, move_preds), "precision": precision_score(y_test, move_preds, zero_division=0), "recall": recall_score(y_test, move_preds, zero_division=0), "f1": f1_score(y_test, move_preds, zero_division=0), "y_test": y_test}  # Keep for count calculation
+        metrics = {"accuracy": accuracy_score(y_test, move_preds), "precision": precision_score(y_test, move_preds, zero_division=0), "recall": recall_score(y_test, move_preds, zero_division=0), "f1": f1_score(y_test, move_preds, zero_division=0), "y_test": y_test, "y_train": y_train, "training_time": move_train_duration, "params": move_model.get_params(), "config_hash": f"{tenant_id}_{symbol_id}_{model_type}_{datetime.now().strftime('%Y%m%d')}"}
+
+        # Additional metrics if needed
+        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+        try:
+            move_probs = move_model.predict_proba(X_test)[:, 1]
+            metrics["mse"] = mean_squared_error(y_test, move_probs)
+            metrics["rmse"] = np.sqrt(metrics["mse"])
+            metrics["mae"] = mean_absolute_error(y_test, move_probs)
+            metrics["r2"] = r2_score(y_test, move_probs)
+
+            from sklearn.metrics import roc_auc_score
+
+            metrics["roc_auc"] = roc_auc_score(y_test, move_probs)
+        except Exception as e:
+            logger.warning(f"Could not calculate additional metrics: {e}")
 
         # Save model with metadata
         model_data = {"model": move_model, "selected_features": selected_features, "training_date": datetime.now().date(), "metrics": metrics, "tenant_id": tenant_id}
@@ -284,12 +347,27 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -
                 y_dir_test = y_dir.iloc[dir_train_size:]
 
                 # Train direction model
+                dir_train_start = datetime.now()
                 dir_model = get_classifier(model_type, tenant_id, session)
                 dir_model.fit(X_dir_train, y_dir_train)
+                dir_train_duration = (datetime.now() - dir_train_start).total_seconds()
 
                 # Calculate metrics
                 dir_preds = dir_model.predict(X_dir_test)
-                dir_metrics = {"accuracy": accuracy_score(y_dir_test, dir_preds), "precision": precision_score(y_dir_test, dir_preds, zero_division=0), "recall": recall_score(y_dir_test, dir_preds, zero_division=0), "f1": f1_score(y_dir_test, dir_preds, zero_division=0), "y_test": y_dir_test}
+                dir_metrics = {"accuracy": accuracy_score(y_dir_test, dir_preds), "precision": precision_score(y_dir_test, dir_preds, zero_division=0), "recall": recall_score(y_dir_test, dir_preds, zero_division=0), "f1": f1_score(y_dir_test, dir_preds, zero_division=0), "y_test": y_dir_test, "y_train": y_dir_train, "training_time": dir_train_duration, "params": dir_model.get_params(), "config_hash": f"{tenant_id}_{symbol_id}_{model_type}_dir_{datetime.now().strftime('%Y%m%d')}"}
+
+                # Add additional metrics for direction model
+                try:
+                    dir_probs = dir_model.predict_proba(X_dir_test)[:, 1]
+                    dir_metrics["mse"] = mean_squared_error(y_dir_test, dir_probs)
+                    dir_metrics["rmse"] = np.sqrt(dir_metrics["mse"])
+                    dir_metrics["mae"] = mean_absolute_error(y_dir_test, dir_probs)
+                    dir_metrics["r2"] = r2_score(y_dir_test, dir_probs)
+
+                    # Add ROC AUC if possible
+                    dir_metrics["roc_auc"] = roc_auc_score(y_dir_test, dir_probs)
+                except Exception as e:
+                    logger.warning(f"Could not calculate additional metrics for direction model: {e}")
 
                 # Save model
                 dir_model_data = {"model": dir_model, "selected_features": dir_features, "training_date": datetime.now().date(), "metrics": dir_metrics, "tenant_id": tenant_id}
@@ -301,28 +379,30 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -
                 # Record performance
                 record_model_performance(session, tenant_id, symbol_id, "direction", dir_metrics, dir_features)
 
-                direction_result = {"status": "success", "accuracy": dir_metrics["accuracy"], "precision": dir_metrics["precision"], "recall": dir_metrics["recall"], "f1": dir_metrics["f1"], "feature_count": len(dir_features)}
+                direction_result = {"status": "success", "accuracy": dir_metrics["accuracy"], "precision": dir_metrics["precision"], "recall": dir_metrics["recall"], "f1": dir_metrics["f1"], "feature_count": len(dir_features), "roc_auc": dir_metrics.get("roc_auc"), "mse": dir_metrics.get("mse"), "rmse": dir_metrics.get("rmse"), "mae": dir_metrics.get("mae"), "r2": dir_metrics.get("r2")}
             else:
                 direction_result = {"status": "skipped", "reason": "Insufficient samples after split"}
         else:
             direction_result = {"status": "skipped", "reason": "Insufficient strong move samples"}
 
-        # Calculate training time
-        duration = (datetime.now() - start_time).total_seconds()
+        # Calculate total duration
+        final_duration = (datetime.now() - start_time).total_seconds()
 
-        return {"status": "success", "symbol_id": symbol_id, "move_model": {"accuracy": metrics["accuracy"], "precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"], "feature_count": len(selected_features)}, "direction_model": direction_result, "duration": duration}
+        return {"status": "success", "symbol_id": symbol_id, "move_model": {"accuracy": metrics["accuracy"], "precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"], "feature_count": len(selected_features)}, "direction_model": direction_result, "duration": final_duration}
 
     except Exception as e:
-        logger.error(f"Error training model for tenant {tenant_id}, symbol {symbol.trading_symbol}: {e}")
+        logger.error(f"Error training model for tenant {tenant_id}, symbol {symbol_id}: {e}")
         return {"status": "error", "message": str(e)}
     finally:
-        session.close()
+        if not db:  # Only close if we created the session
+            session.close()
 
 
 def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = None, current_user: Optional[User] = None) -> Dict[int, Dict[str, Any]]:
     """Train models for all specified symbols for a tenant."""
     session = next(get_db_session())
     results = {}
+    symbol_ids = []
 
     try:
         # Get tenant info
@@ -333,18 +413,20 @@ def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = No
             return results
 
         # Get symbols for tenant if not provided
-        if not request.symbols:
-            # Get tenant's watchlist symbols
+        if request and request.symbols:
+            symbol_ids = request.symbols
+        else:
+            # Get symbols based on user/request properties
             if current_user and current_user.is_superadmin:
                 query = session.query(Symbol)
-                if request.is_active:
+                if request and request.is_active:
                     query = query.filter(Symbol.active)
-                if request.fo_eligible:
+                if request and request.fo_eligible:
                     query = query.filter(Symbol.fo_eligible)
                 symbols = query.all()
                 symbol_ids = [symbol.id for symbol in symbols]
             else:
-                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=True)
+                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=request.fo_eligible if request else True)
                 symbol_ids = [item["symbol_id"] for item in watchlist]
 
         logger.info(f"Training models for tenant {tenant_id}: {len(symbol_ids)} symbols")
