@@ -10,6 +10,8 @@ from app.db.models.symbol import Symbol
 from app.db.models.feature_data import FeatureData
 from app.core.features.feature_engineer import calculate_features
 from app.core.logger import get_logger
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
 
 logger = get_logger(__name__)
 
@@ -121,6 +123,8 @@ def calculate_features_for_symbol(db: Session, symbol_id: int) -> Dict[str, Any]
     try:
         # Check if calculation is needed
         if not should_calculate_features(db, symbol_id):
+            symbol = db.query(Symbol).filter(Symbol.id == symbol_id).first()
+            logger.info(f"Skipping {symbol.trading_symbol if symbol else symbol_id} — all features up-to-date")
             return {"status": "skipped", "message": "No missing feature dates"}
 
         # Get symbol info
@@ -136,7 +140,7 @@ def calculate_features_for_symbol(db: Session, symbol_id: int) -> Dict[str, Any]
 
         # Calculate features
         logger.info(f"Calculating features for {symbol.trading_symbol} with {len(eod_df)} records")
-        features_df = calculate_features(eod_df)
+        features_df = calculate_features(eod_df, symbol.trading_symbol)
 
         if features_df.empty:
             return {"status": "error", "message": "Feature calculation failed"}
@@ -219,18 +223,52 @@ def get_feature_calculation_status(calculation_id: str) -> Dict[str, Any]:
     return feature_calculation_status[calculation_id]
 
 
-def run_feature_calculation_background(calculation_id: str, symbol_ids: Optional[List[int]] = None, active_only: bool = True):
+def run_feature_calculation_background(calculation_id: str, symbol_ids: Optional[List[int]] = None, active_only: bool = True, fo_eligible: bool = False):
     """Run feature calculation as a background task with a provided calculation ID"""
     from app.db.session import get_db_session
 
-    # Initialize status
-    feature_calculation_status[calculation_id] = {"status": "running", "started_at": datetime.now().isoformat(), "total": 0, "processed": 0, "successful": 0}
-
-    # Run in a new database session
     db = next(get_db_session())
+    feature_calculation_status[calculation_id] = {"status": "running", "started_at": datetime.now().isoformat(), "total": 0, "processed": 0, "successful": 0, "errors": 0, "details": {}}
+
     try:
-        results = calculate_features_batch(db, symbol_ids, active_only)
-        feature_calculation_status[calculation_id].update({"status": "completed", "completed_at": datetime.now().isoformat(), "results": results})
+        # Fetch symbol IDs to process
+        if not symbol_ids:
+            query = db.query(Symbol.id)
+            if active_only:
+                query = query.filter(Symbol.active)
+            if fo_eligible:
+                query = query.filter(Symbol.fo_eligible)
+
+            symbol_ids = [s.id for s in query.all()]
+
+        feature_calculation_status[calculation_id]["total"] = len(symbol_ids)
+
+        # Define the worker
+        def worker(symbol_id):
+            local_db = next(get_db_session())
+            try:
+                result = calculate_features_for_symbol(local_db, symbol_id)
+                return symbol_id, result
+            finally:
+                local_db.close()
+
+        num_workers = min(32, multiprocessing.cpu_count() * 2)
+
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = {executor.submit(worker, sid): sid for sid in symbol_ids}
+            for future in as_completed(futures):
+                symbol_id, result = future.result()
+                feature_calculation_status[calculation_id]["processed"] += 1
+                feature_calculation_status[calculation_id]["details"][symbol_id] = result
+
+                if result["status"] == "success":
+                    feature_calculation_status[calculation_id]["successful"] += 1
+                elif result["status"] == "error":
+                    feature_calculation_status[calculation_id]["errors"] += 1
+
+        feature_calculation_status[calculation_id]["status"] = "completed"
+        feature_calculation_status[calculation_id]["completed_at"] = datetime.now().isoformat()
+
     except Exception as e:
         feature_calculation_status[calculation_id].update({"status": "error", "completed_at": datetime.now().isoformat(), "error": str(e)})
         logger.error(f"Feature calculation task failed: {e}")

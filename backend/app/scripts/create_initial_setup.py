@@ -4,6 +4,10 @@ import sys
 import os
 from app.scripts.init_system import init_system
 
+from app.core.logger import get_logger
+
+logger = get_logger(__name__)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Initialize Finexia system")
     parser.add_argument("--username", default="superadmin", help="Superadmin username")
@@ -14,8 +18,8 @@ if __name__ == "__main__":
 
     try:
         init_system(superadmin_username=args.username, superadmin_email=args.email, superadmin_password=args.password)
-        print("System initialized successfully!")
+        logger.info("System initialized successfully!")
         sys.exit(0)
     except Exception as e:
-        print(f"Error initializing system: {str(e)}")
+        logger.error(f"Error initializing system: {str(e)}")
         sys.exit(1)

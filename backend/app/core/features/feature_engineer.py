@@ -5,6 +5,9 @@ import numpy as np
 import time
 from functools import lru_cache
 from typing import Dict, Any
+from app.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @lru_cache(maxsize=128)
@@ -85,7 +88,7 @@ def calculate_rsi(series, period=14):
     return pd.Series(rsi, index=series.index)
 
 
-def calculate_features(eod_df: pd.DataFrame) -> pd.DataFrame:
+def calculate_features(eod_df: pd.DataFrame, symbol: str = "Unknown") -> pd.DataFrame:
     """Calculate features with optimized operations."""
     start_time = time.time()
 
@@ -181,7 +184,7 @@ def calculate_features(eod_df: pd.DataFrame) -> pd.DataFrame:
     feature_columns = ["symbol_id", "date", "week_day", "volatility_squeeze", "trend_zone_strength", "range_compression_ratio", "volume_spike_ratio", "body_to_range_ratio", "distance_from_ema_5", "gap_pct", "return_3d", "atr_5", "hl_range", "rsi_14", "close_ema50_gap_pct", "open_gap_pct", "macd_histogram", "atr_14_normalized", "change_percent"]  # Using existing change_percent
 
     elapsed = time.time() - start_time
-    print(f"Feature calculation completed in {elapsed:.2f} seconds for {len(df)} rows.")
+    logger.info(f"Feature calculation completed for {symbol} in {elapsed:.2f} seconds for {len(df)} rows.")
 
     return df[feature_columns]
 
