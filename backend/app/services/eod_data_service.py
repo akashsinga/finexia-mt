@@ -394,7 +394,7 @@ def import_eod_data_from_dataframe(db: Session, symbol_id: int, df: pd.DataFrame
     return import_eod_data(db, symbol_id, records)
 
 
-def get_eod_data(db: Session, symbol_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None, limit: int = 100) -> List[EODData]:
+def get_eod_data(db: Session, symbol_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None, limit: int = None) -> List[EODData]:
     """Get EOD data for a specific symbol with date range filtering"""
     query = db.query(EODData).filter(EODData.symbol_id == symbol_id)
 
@@ -405,7 +405,7 @@ def get_eod_data(db: Session, symbol_id: int, start_date: Optional[date] = None,
         query = query.filter(EODData.date <= end_date)
 
     # Order by date descending (newest first)
-    query = query.order_by(EODData.date.desc())
+    query = query.order_by(EODData.date.asc())
 
     # Apply limit
     return query.limit(limit).all()

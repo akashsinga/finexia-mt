@@ -59,7 +59,7 @@ async def check_eod_data_availability(from_date: Optional[date] = Query(None, de
 
 
 @router.get("/{symbol_id}", response_model=List[EODDataResponse])
-async def get_eod_data_for_symbol(symbol_id: int = Path(..., description="Symbol ID"), from_date: Optional[date] = Query(None, description="Start date for EOD data"), to_date: Optional[date] = Query(None, description="End date for EOD data"), limit: int = Query(100, description="Maximum number of records to return"), db: Session = Depends(get_db_session)):
+async def get_eod_data_for_symbol(symbol_id: int = Path(..., description="Symbol ID"), from_date: Optional[date] = Query(None, description="Start date for EOD data"), to_date: Optional[date] = Query(None, description="End date for EOD data"), limit: int = Query(None, description="Maximum number of records to return"), db: Session = Depends(get_db_session)):
     """
     Get EOD data for a specific symbol
 
