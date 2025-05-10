@@ -92,6 +92,6 @@ async def run_prediction_verification(db: Session = Depends(get_db_session), ten
 async def generate_predictions(background_tasks: BackgroundTasks, request: Optional[PredictionRequest] = None, db: Session = Depends(get_db_session), tenant=Depends(get_current_tenant), current_user=Depends(get_current_user)):
     """Generate predictions for symbols"""
 
-    background_tasks.add_tassk(predict_for_tenant, tenant.id, request, current_user)
+    background_tasks.add_task(predict_for_tenant, tenant.id, request, current_user)
 
-    return {"message": "Prediction generation started", "status": "processing", "tenant_id": tenant.id, "symbols_count": len(request.symbols) if request.symbols else "all watchlist symbols", "requested_by": current_user.username}
+    return {"message": "Prediction generation started", "status": "processing", "tenant_id": tenant.id, "symbols_count": len(request.symbols) if request and request.symbols else "all watchlist symbols", "requested_by": current_user.username}

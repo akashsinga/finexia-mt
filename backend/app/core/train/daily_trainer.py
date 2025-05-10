@@ -412,12 +412,19 @@ def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = No
             logger.error(f"Tenant {tenant_id} not found")
             return results
 
-        # Get symbols for tenant if not provided
+        # Get symbols based on user permissions and request
         if request and request.symbols:
-            symbol_ids = request.symbols
-        else:
-            # Get symbols based on user/request properties
             if current_user and current_user.is_superadmin:
+                # Super admin can use requested symbols directly
+                symbol_ids = request.symbols
+            else:
+                # Non-super admin can only use symbols that are in both request and their watchlist
+                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=False)
+                watchlist_ids = [item["symbol_id"] for item in watchlist]
+                symbol_ids = [sid for sid in request.symbols if sid in watchlist_ids]
+        else:
+            if current_user and current_user.is_superadmin:
+                # Super admin gets all symbols
                 query = session.query(Symbol)
                 if request and request.is_active:
                     query = query.filter(Symbol.active)
@@ -426,6 +433,7 @@ def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = No
                 symbols = query.all()
                 symbol_ids = [symbol.id for symbol in symbols]
             else:
+                # Other users get their watchlist
                 watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=request.fo_eligible if request else True)
                 symbol_ids = [item["symbol_id"] for item in watchlist]
 

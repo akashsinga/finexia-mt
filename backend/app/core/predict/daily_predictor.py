@@ -14,9 +14,14 @@ from app.db.session import get_db_session, SessionLocal
 from app.db.models.prediction import Prediction
 from app.db.models.symbol import Symbol
 from app.db.models.tenant import Tenant
+from app.db.models.user import User
+from app.schemas.prediction import PredictionRequest
 from app.core.config import get_model_path
 from app.services.config_service import get_tenant_config
+from app.services.symbol_service import get_tenant_watchlist
 from app.core.logger import get_logger
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = get_logger(__name__)
 
@@ -194,13 +199,16 @@ def predict_for_one_symbol(tenant_id: int, symbol_id: int) -> bool:
         # Direction prediction (only if move confidence is high enough)
         direction_prediction = None
         direction_confidence = None
-        
-        move_confidence_threshold = 0.5
-        
+
+        move_confidence_threshold = 0.5  # Default value
+                
         if tenant_id:
-            move_confidence_threshold = get_tenant_config(session, tenant_id, "STRONG_MOVE_CONFIDENCE_THRESHOLD")
-            if move_confidence_threshold:
-                move_confidence_threshold = float(move_confidence_threshold)
+            threshold_from_config = get_tenant_config(session, tenant_id, "STRONG_MOVE_CONFIDENCE_THRESHOLD")
+            if threshold_from_config is not None:
+                try:
+                    move_confidence_threshold = float(threshold_from_config)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid STRONG_MOVE_CONFIDENCE_THRESHOLD config value: {threshold_from_config}")
 
         if strong_move_confidence >= move_confidence_threshold:
             direction_model_data = load_model_data(tenant_id, symbol_id, "direction")
@@ -234,35 +242,75 @@ def predict_for_one_symbol(tenant_id: int, symbol_id: int) -> bool:
         session.close()
 
 
-def predict_for_tenant(tenant_id: int, symbols: Optional[List[int]] = None) -> Dict[int, bool]:
+def predict_for_tenant(tenant_id: int, request: Optional[PredictionRequest] = None, current_user: Optional[User] = None) -> Dict[int, bool]:
     """Generate predictions for all specified symbols for a tenant."""
     session = next(get_db_session())
     results = {}
+    symbol_ids = []
 
     try:
-        # Get symbols for tenant if not provided
-        if not symbols:
-            # Get tenant's watchlist symbols
-            from app.services.symbol_service import get_tenant_watchlist
+        # Get tenant info
+        tenant = session.query(Tenant).filter(Tenant.id == tenant_id).first()
 
-            watchlist = get_tenant_watchlist(session, tenant_id, active_only=True)
-            symbols = [item["symbol_id"] for item in watchlist]
+        if not tenant:
+            logger.error(f"Tenant {tenant_id} not found")
+            return results
 
-        logger.info(f"Generating predictions for tenant {tenant_id}, {len(symbols)} symbols")
+        # Get symbols based on user permissions and request
+        if request and request.symbols:
+            if current_user and current_user.is_superadmin:
+                # Super admin can use requested symbols directly
+                symbol_ids = request.symbols
+            else:
+                # Non-super admin can only use symbols that are in both request and their watchlist
+                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=request.fo_eligible if request else True)
+                watchlist_ids = [item["symbol_id"] for item in watchlist]
+                symbol_ids = [sid for sid in request.symbols if sid in watchlist_ids]
+        else:
+            # No specific symbols requested
+            if current_user and current_user.is_superadmin:
+                # Super admin gets all symbols
+                query = session.query(Symbol)
+                if request and request.is_active:
+                    query = query.filter(Symbol.active)
+                if request and request.fo_eligible:
+                    query = query.filter(Symbol.fo_eligible)
+                symbols = query.all()
+                symbol_ids = [symbol.id for symbol in symbols]
+            else:
+                # Other users get their watchlist
+                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=request.fo_eligible if request else True)
+                symbol_ids = [item["symbol_id"] for item in watchlist]
 
-        # Process each symbol
-        for symbol_id in symbols:
-            success = predict_for_one_symbol(tenant_id, symbol_id)
-            results[symbol_id] = success
+        logger.info(f"Generating predictions for tenant {tenant_id}: {len(symbol_ids)} symbols")
+
+        num_workers = min(32, multiprocessing.cpu_count() * 2)
+
+        def worker(symbol_id):
+            local_db = next(get_db_session())
+            try:
+                success = predict_for_one_symbol(tenant_id=tenant_id, symbol_id=symbol_id)
+                return symbol_id, success
+            except Exception as e:
+                logger.error(f"Prediction failed for symbol {symbol_id}: {e}")
+                return symbol_id, False
+            finally:
+                local_db.close()
+
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = {executor.submit(worker, sid): sid for sid in symbol_ids}
+            for future in as_completed(futures):
+                sid, result = future.result()
+                results[sid] = result
 
         # Log summary
-        success_count = sum(1 for v in results.values() if v)
-        logger.info(f"Tenant {tenant_id} predictions completed: {success_count}/{len(symbols)} successful")
+        success_count = sum(1 for r in results.values() if r)
+        logger.info(f"Tenant {tenant_id} predictions completed: {success_count}/{len(symbol_ids)} successful")
 
         return results
 
     except Exception as e:
-        logger.error(f"Error in tenant predictions: {e}")
+        logger.error(f"Error in batch predictions: {e}")
         return results
     finally:
         session.close()
