@@ -11,6 +11,7 @@ from app.db.models.user import User
 from app.schemas.prediction import PredictionRequest
 from app.core.predict.daily_predictor import predict_for_one_symbol, predict_for_tenant
 from app.core.train.daily_trainer import train_model_for_symbol
+from app.schemas.prediction import PredictionFilter
 from app.core.logger import get_logger
 import asyncio
 from app.websockets.connection_manager import connection_manager
@@ -40,27 +41,27 @@ def get_latest_prediction(db: Session, symbol_id: int, tenant_id: int) -> Option
     return db.query(Prediction).filter(Prediction.symbol_id == symbol_id, Prediction.tenant_id == tenant_id).order_by(Prediction.date.desc()).first()
 
 
-def get_predictions_by_date(db: Session, tenant_id: int, prediction_date: Optional[date] = None, verified: Optional[bool] = None, direction: Optional[str] = None, min_confidence: float = 0.5, symbol_id: Optional[int] = None, skip: int = 0, limit: int = 100) -> List[Prediction]:
-    """Get predictions with various filters"""
+def get_predictions_by_date(db: Session, tenant_id: int, filters: PredictionFilter, skip: int = 0, limit: int = 100):
+    """Get predictions with filters"""
     query = db.query(Prediction).filter(Prediction.tenant_id == tenant_id)
 
-    # Apply filters
-    if prediction_date:
-        query = query.filter(Prediction.date == prediction_date)
+    # Extract filter values from the PredictionFilter object
+    if filters.date:
+        query = query.filter(Prediction.date == filters.date)
 
-    if verified is not None:
-        query = query.filter(Prediction.verified == verified)
+    if filters.verified is not None:  # Check if it's None, not if it's falsy
+        query = query.filter(Prediction.verified == filters.verified)
 
-    if direction:
-        query = query.filter(Prediction.direction_prediction == direction)
+    if filters.direction:
+        query = query.filter(Prediction.direction_prediction == filters.direction)
 
-    if min_confidence > 0:
-        query = query.filter(Prediction.strong_move_confidence >= min_confidence)
+    if filters.min_confidence > 0:
+        query = query.filter(Prediction.strong_move_confidence >= filters.min_confidence)
 
-    if symbol_id:
-        query = query.filter(Prediction.symbol_id == symbol_id)
+    if filters.symbol_id:
+        query = query.filter(Prediction.symbol_id == filters.symbol_id)
 
-    # Add pagination
+    # Return query results
     return query.order_by(Prediction.date.desc()).offset(skip).limit(limit).all()
 
 
