@@ -20,7 +20,7 @@ const routes = [
     component: MainLayout,
     meta: { requiresAuth: true },
     children: [
-      { path: '', name: 'dashboard', component: Dashboard, meta: { title: 'Dashboard', icon: 'dashboard' } },
+      { path: '', name: 'dashboard', component: Dashboard, meta: { title: 'Dashboard | Finexia', icon: 'dashboard' } },
       // { path: 'symbols', name: 'symbols', component: SymbolsList, meta: { title: 'Symbols', icon: 'trending_up' } },
       // { path: 'symbols/:id', name: 'symbol-detail', component: SymbolDetail, meta: { title: 'Symbol Details', hideInMenu: true }, props: true },
       // { path: 'predictions', name: 'predictions', component: PredictionsList, meta: { title: 'Predictions', icon: 'insights' } },
@@ -39,7 +39,7 @@ const router = createRouter({
 });
 
 router.beforeEach((to, from, next) => {
-  document.title = `${to.meta.title || 'Finexia'} | Stock Market Intelligence`;
+  document.title = `${to.meta.title || 'Finexia | Predictive Market Analytics'}`;
 
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
   const requiresAdmin = to.matched.some(record => record.meta.requiresAdmin);

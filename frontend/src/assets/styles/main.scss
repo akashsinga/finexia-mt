@@ -10,6 +10,10 @@
 @import url('https://unpkg.com/@phosphor-icons/web@2.0.3/src/fill/style.css');
 @import url('https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css');
 
+html, body {
+  @apply text-sm;
+}
+
 /* Form labels */
 .form-label {
   @apply block text-sm font-medium text-gray-700 mb-1;
@@ -17,7 +21,7 @@
 
 /* Basic form inputs - Updated to remove outline */
 .form-input {
-  @apply w-full py-2 pl-10 pr-10 ring-1 ring-gray-200 rounded-lg focus:ring-blue-400 outline-none border-none transition-all duration-500 text-sm;
+  @apply w-full py-2 pl-10 pr-10 ring-1 ring-gray-300 rounded-lg focus:ring-blue-400 outline-none border-none transition-all duration-500 text-sm;
 }
 
 /* Input with icon wrapper */
@@ -37,12 +41,12 @@
 
 /* Textarea styling */
 .form-textarea {
-  @apply w-full py-2 px-4 ring-1 ring-gray-200 rounded-lg focus:ring-blue-400 outline-none border-none transition-all duration-500 text-sm resize-none;
+  @apply w-full py-2 px-4 ring-1 ring-gray-300 rounded-lg focus:ring-blue-400 outline-none border-none transition-all duration-500 text-sm resize-none;
 }
 
 /* Native select styling */
 .form-select {
-  @apply w-full py-2 pl-10 pr-10 ring-1 ring-gray-200 rounded-lg focus:ring-blue-400 outline-none border-none transition-all duration-500 text-sm bg-white appearance-none;
+  @apply w-full py-2 pl-10 pr-10 ring-1 ring-gray-300 rounded-lg focus:ring-blue-400 outline-none border-none transition-all duration-500 text-sm bg-white appearance-none;
 }
 
 /* Checkbox styling */
@@ -62,7 +66,7 @@
 
 /* Range input styling */
 .form-range {
-  @apply w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer;
+  @apply w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer;
 }
 
 .form-range::-webkit-slider-thumb {
@@ -96,7 +100,7 @@ input:checked+.form-switch-slider .form-switch-thumb {
 
 /* Tag input / multiselect styling */
 .form-multiselect {
-  @apply flex flex-wrap gap-2 items-center w-full py-2 px-3 ring-1 ring-gray-200 rounded-lg focus-within:ring-blue-400 transition-all duration-500 text-sm;
+  @apply flex flex-wrap gap-2 items-center w-full py-2 px-3 ring-1 ring-gray-300 rounded-lg focus-within:ring-blue-400 transition-all duration-500 text-sm;
 }
 
 .form-tag {

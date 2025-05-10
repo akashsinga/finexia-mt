@@ -65,9 +65,9 @@
         <!-- Footer -->
         <div class="text-center mt-6 text-sm text-gray-600">
           <div class="flex items-center mb-4">
-            <div class="flex-grow border-t border-gray-200"></div>
+            <div class="flex-grow border-t border-gray-300"></div>
             <span class="px-3 text-xs text-gray-500">OR</span>
-            <div class="flex-grow border-t border-gray-200"></div>
+            <div class="flex-grow border-t border-gray-300"></div>
           </div>
           <p>Don't have an account? <a href="#" @click.prevent="goToRegister" class="text-blue-600 font-medium hover:text-blue-800 transition-colors duration-200">Sign up</a></p>
         </div>
