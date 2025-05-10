@@ -8,6 +8,8 @@ from datetime import datetime
 from app.websockets.connection_manager import connection_manager
 from app.websockets.auth import verify_token
 from app.api.routers.symbols import symbol_import_status
+from app.services.feature_data_service import get_feature_calculation_status
+from app.services.prediction_service import prediction_task_status
 
 router = APIRouter()
 logger = logging.getLogger("finexia-api")
@@ -99,9 +101,6 @@ async def system_websocket(websocket: WebSocket):
         connection_manager.disconnect(websocket)
 
 
-# Add to backend/app/websockets/router.py
-
-
 @router.websocket("/ws/symbol_import/{task_id}")
 async def symbol_import_websocket(websocket: WebSocket, task_id: str):
     """WebSocket endpoint for receiving specific symbol import updates"""
@@ -155,7 +154,7 @@ async def eod_import_websocket(websocket: WebSocket, task_id: str):
     client_id = f"{username}_{uuid.uuid4()}"
 
     # Connect to the specific channel for this import task
-    await connection_manager.connect(websocket, client_id, f"eod_import_{task_id}")
+    await connection_manager.connect(websocket, client_id, f"eod_import_{task_id}", tenant_id=user_data.get("tenant_id"))
 
     # Send initial status if available
     from app.services.eod_data_service import get_import_status
@@ -169,4 +168,124 @@ async def eod_import_websocket(websocket: WebSocket, task_id: str):
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        connection_manager.disconnect(websocket, client_id)
+        connection_manager.disconnect(websocket)
+
+
+@router.websocket("/ws/model_training/{task_id}")
+async def model_training_websocket(websocket: WebSocket, task_id: str):
+    """WebSocket endpoint for receiving model training updates"""
+    # Verify client token
+    is_authenticated, user_data = await verify_token(websocket)
+    if not is_authenticated:
+        return
+
+    # Only admin users can subscribe to model training status
+    if not user_data.get("is_admin", False):
+        await websocket.close(code=4003, reason="Admin privileges required")
+        return
+
+    tenant_id = user_data["tenant_id"]
+    username = user_data["username"]
+
+    # Generate a unique client ID
+    client_id = f"{username}_{uuid.uuid4()}"
+
+    # Connect to the model_training channel for this task
+    await connection_manager.connect(websocket=websocket, client_id=client_id, topic=f"model_training_{task_id}", tenant_id=tenant_id, user_id=user_data.get("user_id"))
+
+    try:
+        while True:
+            await websocket.receive_text()
+            # Keep connection alive
+    except WebSocketDisconnect:
+        connection_manager.disconnect(websocket)
+
+
+@router.websocket("/ws/feature_calculation/{calculation_id}")
+async def feature_calculation_websocket(websocket: WebSocket, calculation_id: str):
+    """WebSocket endpoint for receiving feature calculation updates"""
+    # Verify client token
+    is_authenticated, user_data = await verify_token(websocket)
+    if not is_authenticated:
+        return
+
+    # Only admin users can subscribe
+    if not user_data.get("is_admin", False):
+        await websocket.close(code=4003, reason="Admin privileges required")
+        return
+
+    tenant_id = user_data["tenant_id"]
+    username = user_data["username"]
+
+    # Generate a unique client ID
+    client_id = f"{username}_{uuid.uuid4()}"
+
+    # Connect to the feature_calculation channel for this task
+    await connection_manager.connect(websocket=websocket, client_id=client_id, topic=f"feature_calculation_{calculation_id}", tenant_id=tenant_id, user_id=user_data.get("user_id"))
+
+    # Send initial status if available
+    status = get_feature_calculation_status(calculation_id)
+    if status.get("status") != "not_found":
+        await websocket.send_json({"type": "feature_calculation_status", "timestamp": datetime.now().isoformat(), "data": status})
+
+    try:
+        while True:
+            await websocket.receive_text()
+            # Keep connection alive
+    except WebSocketDisconnect:
+        connection_manager.disconnect(websocket)
+
+
+@router.websocket("/ws/predictions/{task_id}")
+async def predictions_task_websocket(websocket: WebSocket, task_id: str):
+    """WebSocket endpoint for receiving status updates on a prediction task"""
+    # Verify client token
+    is_authenticated, user_data = await verify_token(websocket)
+    if not is_authenticated:
+        return
+
+    tenant_id = user_data["tenant_id"]
+    username = user_data["username"]
+
+    # Generate a unique client ID
+    client_id = f"{username}_{uuid.uuid4()}"
+
+    # Connect to the predictions channel for this task
+    await connection_manager.connect(websocket=websocket, client_id=client_id, topic=f"predictions_{task_id}", tenant_id=tenant_id, user_id=user_data.get("user_id"))
+
+    # Send initial status if available
+    if task_id in prediction_task_status:
+        status_data = prediction_task_status[task_id]
+        await websocket.send_json({"type": "prediction_status", "timestamp": datetime.now().isoformat(), "data": {"task_id": task_id, "status": status_data}})
+
+    try:
+        while True:
+            await websocket.receive_text()
+            # Keep connection alive
+    except WebSocketDisconnect:
+        connection_manager.disconnect(websocket)
+
+
+@router.websocket("/ws/dashboard")
+async def dashboard_websocket(websocket: WebSocket):
+    """WebSocket endpoint for real-time dashboard updates"""
+    # Verify client token
+    is_authenticated, user_data = await verify_token(websocket)
+    if not is_authenticated:
+        return
+
+    tenant_id = user_data["tenant_id"]
+    username = user_data["username"]
+
+    # Generate a unique client ID
+    client_id = f"{username}_{uuid.uuid4()}"
+
+    # Connect to the dashboard channel
+    await connection_manager.connect(websocket=websocket, client_id=client_id, topic="dashboard", tenant_id=tenant_id, user_id=user_data.get("user_id"))
+
+    try:
+        while True:
+            await websocket.receive_text()
+            # Keep connection alive
+    except WebSocketDisconnect:
+        connection_manager.disconnect(websocket)

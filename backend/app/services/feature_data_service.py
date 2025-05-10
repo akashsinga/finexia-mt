@@ -12,11 +12,24 @@ from app.core.features.feature_engineer import calculate_features
 from app.core.logger import get_logger
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import multiprocessing
+from app.websockets.connection_manager import connection_manager
+import asyncio
 
 logger = get_logger(__name__)
 
 # In-memory tracking for feature calculation status
 feature_calculation_status = {}
+
+
+async def notify_feature_calculation_status(calculation_id: str, status: str, details: Dict[str, Any] = None):
+    """Send WebSocket notification about feature calculation status"""
+    message = {"type": "feature_calculation_status", "timestamp": datetime.now().isoformat(), "data": {"calculation_id": calculation_id, "status": status, **(details or {})}}
+
+    # Broadcast to specific topic
+    await connection_manager.broadcast(message, f"feature_calculation_{calculation_id}")
+
+    # Also broadcast to features topic
+    await connection_manager.broadcast(message, "features")
 
 
 def get_latest_feature_date(db: Session, symbol_id: int) -> Optional[date]:
@@ -230,6 +243,9 @@ def run_feature_calculation_background(calculation_id: str, symbol_ids: Optional
     db = next(get_db_session())
     feature_calculation_status[calculation_id] = {"status": "running", "started_at": datetime.now().isoformat(), "total": 0, "processed": 0, "successful": 0, "errors": 0, "details": {}}
 
+    # Send initial notification
+    asyncio.create_task(notify_feature_calculation_status(calculation_id, "started", {"started_at": feature_calculation_status[calculation_id]["started_at"]}))
+
     try:
         # Fetch symbol IDs to process
         if not symbol_ids:
@@ -256,10 +272,19 @@ def run_feature_calculation_background(calculation_id: str, symbol_ids: Optional
 
         with ThreadPoolExecutor(max_workers=num_workers) as executor:
             futures = {executor.submit(worker, sid): sid for sid in symbol_ids}
+
+            # Track processed count for progress updates
+            processed = 0
             for future in as_completed(futures):
                 symbol_id, result = future.result()
                 feature_calculation_status[calculation_id]["processed"] += 1
                 feature_calculation_status[calculation_id]["details"][symbol_id] = result
+
+                processed += 1
+                if processed % 5 == 0 or processed == len(symbol_ids):
+                    # Send progress update
+                    progress = (processed / len(symbol_ids)) * 100
+                    asyncio.create_task(notify_feature_calculation_status(calculation_id, "progress", {"processed": processed, "total": len(symbol_ids), "progress": progress}))
 
                 if result["status"] == "success":
                     feature_calculation_status[calculation_id]["successful"] += 1
@@ -269,8 +294,14 @@ def run_feature_calculation_background(calculation_id: str, symbol_ids: Optional
         feature_calculation_status[calculation_id]["status"] = "completed"
         feature_calculation_status[calculation_id]["completed_at"] = datetime.now().isoformat()
 
+        # Send completion notification
+        asyncio.create_task(notify_feature_calculation_status(calculation_id, "completed", {"completed_at": feature_calculation_status[calculation_id]["completed_at"], "successful": feature_calculation_status[calculation_id]["successful"], "errors": feature_calculation_status[calculation_id]["errors"]}))
+
     except Exception as e:
         feature_calculation_status[calculation_id].update({"status": "error", "completed_at": datetime.now().isoformat(), "error": str(e)})
+
+        asyncio.create_task(notify_feature_calculation_status(calculation_id, "error", {"error": str(e)}))
+
         logger.error(f"Feature calculation task failed: {e}")
     finally:
         db.close()

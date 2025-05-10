@@ -23,8 +23,29 @@ from app.api.deps import get_current_user
 from app.schemas.model import ModelRequest
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from app.websockets.connection_manager import connection_manager
+import asyncio
+import time
 
 logger = get_logger(__name__)
+
+
+async def notify_model_training_status(tenant_id: int, task_id: str, status: str, details: Dict[str, Any] = None):
+    """Send WebSocket notification about model training status"""
+    message = {"type": "model_training_status", "timestamp": datetime.now().isoformat(), "data": {"task_id": task_id, "status": status, **(details or {})}}
+
+    # Broadcast to system topic (for admins)
+    await connection_manager.broadcast(message, "system")
+
+    # Also broadcast to specific topic for this training task
+    await connection_manager.broadcast(message, f"model_training_{task_id}")
+
+    # Broadcast to tenant-specific channel
+    await connection_manager.broadcast_to_tenant(message, tenant_id)
+
+
+# Create a global dictionary to track model training tasks
+model_training_status = {}
 
 
 def get_classifier(classifier_name: str, tenant_id: int = None, db: Session = None):
@@ -415,12 +436,28 @@ def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = No
     results = {}
     symbol_ids = []
 
+    # Generate task ID
+    task_id = str(int(time.time()))
+
+    # Initialize status tracking
+    model_training_status[task_id] = {"status": "started", "started_at": datetime.now().isoformat(), "tenant_id": tenant_id, "total": 0, "processed": 0, "successful": 0, "failed": 0}
+
+    # Initial status notification
+    asyncio.create_task(notify_model_training_status(tenant_id, task_id, "started", {"message": "Starting model training"}))
+
     try:
         # Get tenant info
         tenant = session.query(Tenant).filter(Tenant.id == tenant_id).first()
 
         if not tenant:
             logger.error(f"Tenant {tenant_id} not found")
+
+            # Update status
+            model_training_status[task_id].update({"status": "failed", "error": "Tenant not found", "completed_at": datetime.now().isoformat()})
+
+            # Send error notification
+            asyncio.create_task(notify_model_training_status(tenant_id, task_id, "failed", {"error": "Tenant not found"}))
+
             return results
 
         # Get symbols based on user permissions and request
@@ -452,14 +489,39 @@ def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = No
         # Get symbol names for better logging
         symbol_names = {s.id: s.trading_symbol for s in session.query(Symbol).filter(Symbol.id.in_(symbol_ids)).all()}
 
+        # Update status with total count
+        model_training_status[task_id]["total"] = len(symbol_ids)
+
+        # Send update with total count
+        asyncio.create_task(notify_model_training_status(tenant_id, task_id, "progress", {"total": len(symbol_ids), "message": f"Training {len(symbol_ids)} models"}))
+
         logger.info(f"Training models for tenant {tenant_id}: {len(symbol_ids)} symbols")
 
         num_workers = min(32, multiprocessing.cpu_count() * 2)
+        processed = 0
 
         def worker(symbol_id):
             local_db = next(get_db_session())
             try:
-                return symbol_id, train_model_for_symbol(tenant_id=tenant_id, symbol_id=symbol_id, db=local_db)
+                result = train_model_for_symbol(tenant_id=tenant_id, symbol_id=symbol_id, db=local_db)
+                symbol_name = symbol_names.get(symbol_id, f"ID: {symbol_id}")
+
+                # Update counters
+                nonlocal processed
+                processed += 1
+                if result.get("status") == "success":
+                    model_training_status[task_id]["successful"] += 1
+                else:
+                    model_training_status[task_id]["failed"] += 1
+
+                model_training_status[task_id]["processed"] = processed
+
+                # Send progress update
+                if processed % 5 == 0 or processed == len(symbol_ids):
+                    progress = (processed / len(symbol_ids)) * 100
+                    asyncio.create_task(notify_model_training_status(tenant_id, task_id, "progress", {"processed": processed, "total": len(symbol_ids), "successful": model_training_status[task_id]["successful"], "failed": model_training_status[task_id]["failed"], "progress": progress, "message": f"Progress: {processed}/{len(symbol_ids)} ({progress:.1f}%)"}))
+
+                return symbol_id, result
             except Exception as e:
                 symbol_name = symbol_names.get(symbol_id, f"ID: {symbol_id}")
                 logger.error(f"Training failed for symbol {symbol_name}: {e}")
@@ -477,10 +539,23 @@ def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = No
         success_count = sum(1 for r in results.values() if r.get("status") == "success")
         logger.info(f"Model training for tenant {tenant_id} completed: {success_count}/{len(symbol_ids)} successful")
 
+        # Update final status
+        model_training_status[task_id].update({"status": "completed", "completed_at": datetime.now().isoformat(), "success_count": success_count, "total_count": len(symbol_ids)})
+
+        # Send completion notification
+        asyncio.create_task(notify_model_training_status(tenant_id, task_id, "completed", {"message": f"Training completed: {success_count}/{len(symbol_ids)} successful", "success_count": success_count, "total_count": len(symbol_ids)}))
+
         return results
 
     except Exception as e:
         logger.error(f"Error in batch training: {e}")
+
+        # Update error status
+        model_training_status[task_id].update({"status": "failed", "error": str(e), "completed_at": datetime.now().isoformat()})
+
+        # Send error notification
+        asyncio.create_task(notify_model_training_status(tenant_id, task_id, "failed", {"error": str(e)}))
+
         return results
     finally:
         session.close()

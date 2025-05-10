@@ -1,17 +1,30 @@
 # backend/app/api/routers/analytics.py
-from fastapi import APIRouter, Depends, Query, Path
-from typing import List, Optional
-from datetime import date, datetime, timedelta
+from fastapi import APIRouter, Depends, Query
+from typing import List, Dict, Any
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, Integer
+from sqlalchemy import func, Integer
 
 from app.db.session import get_db_session
 from app.db.models.prediction import Prediction
 from app.db.models.symbol import Symbol
 from app.schemas.analytics import DashboardSummary, SymbolPerformance, PredictionTrend, TimeframeEnum, PerformanceMetric
 from app.api.deps import get_current_tenant, get_current_user
+from app.websockets.connection_manager import connection_manager
+import asyncio
 
 router = APIRouter()
+
+
+async def notify_dashboard_update(tenant_id: int, update_type: str, data: Dict[str, Any]):
+    """Send dashboard updates via WebSocket"""
+    message = {"type": "dashboard_update", "timestamp": datetime.now().isoformat(), "update_type": update_type, "data": data, "tenant_id": tenant_id}
+
+    # Broadcast to dashboard topic
+    await connection_manager.broadcast(message, "dashboard")
+
+    # Also broadcast to tenant-specific channel
+    await connection_manager.broadcast_to_tenant(message, tenant_id)
 
 
 @router.get("/dashboard", response_model=DashboardSummary)
@@ -86,7 +99,12 @@ async def get_dashboard_summary(timeframe: TimeframeEnum = Query(TimeframeEnum.M
             accuracy = day.correct / day.total if day.total > 0 else 0
             trends.append(PredictionTrend(date=day.date, total=day.total, correct=day.correct, accuracy=accuracy))
 
-    return DashboardSummary(current_date=today, total_active_symbols=active_symbols, total_predictions=total_predictions, verified_predictions=verified_predictions, overall_accuracy=verified_predictions / total_predictions if total_predictions > 0 else 0, recent_predictions=recent_predictions, recent_accuracy=recent_verified / recent_predictions if recent_predictions > 0 else 0, top_performing_symbols=symbol_performance, prediction_trends=trends)
+    dashboard_data = DashboardSummary(current_date=today, total_active_symbols=active_symbols, total_predictions=total_predictions, verified_predictions=verified_predictions, overall_accuracy=verified_predictions / total_predictions if total_predictions > 0 else 0, recent_predictions=recent_predictions, recent_accuracy=recent_verified / recent_predictions if recent_predictions > 0 else 0, top_performing_symbols=symbol_performance, prediction_trends=trends)
+
+    # Send WebSocket notification
+    asyncio.create_task(notify_dashboard_update(tenant.id, "dashboard_refresh", dashboard_data.dict()))
+
+    return dashboard_data
 
 
 @router.get("/performance/symbols", response_model=List[SymbolPerformance])

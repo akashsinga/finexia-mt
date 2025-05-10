@@ -11,6 +11,8 @@ from app.schemas.prediction import PredictionResponse, PredictionList, Predictio
 from app.services.prediction_service import get_latest_prediction, get_predictions_by_date, verify_predictions
 from app.core.predict.daily_predictor import predict_for_tenant
 from app.api.deps import get_current_tenant, get_current_user, get_current_active_admin
+import uuid
+from datetime import datetime
 
 router = APIRouter()
 
@@ -92,6 +94,18 @@ async def run_prediction_verification(db: Session = Depends(get_db_session), ten
 async def generate_predictions(background_tasks: BackgroundTasks, request: Optional[PredictionRequest] = None, db: Session = Depends(get_db_session), tenant=Depends(get_current_tenant), current_user=Depends(get_current_user)):
     """Generate predictions for symbols"""
 
-    background_tasks.add_task(predict_for_tenant, tenant.id, request, current_user)
+    # Generate a task ID for tracking
+    task_id = str(uuid.uuid4())
 
-    return {"message": "Prediction generation started", "status": "processing", "tenant_id": tenant.id, "symbols_count": len(request.symbols) if request and request.symbols else "all watchlist symbols", "requested_by": current_user.username}
+    # Store initial status in a global variable
+    from app.services.prediction_service import prediction_task_status
+
+    prediction_task_status[task_id] = {"status": "started", "started_at": datetime.now().isoformat(), "tenant_id": tenant.id, "user_id": current_user.id, "symbols": request.symbols if request and request.symbols else "all_watchlist"}
+
+    # Import the wrapper function
+    from app.services.prediction_service import predict_for_tenant_with_notifications
+
+    # Start task in background
+    background_tasks.add_task(predict_for_tenant_with_notifications, tenant.id, request, current_user, task_id)
+
+    return {"message": "Prediction generation started", "status": "processing", "task_id": task_id, "tenant_id": tenant.id, "symbols_count": len(request.symbols) if request and request.symbols else "all watchlist symbols", "requested_by": current_user.username, "websocket_topic": f"predictions_{task_id}"}

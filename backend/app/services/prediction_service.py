@@ -7,12 +7,32 @@ from typing import List, Optional, Dict, Any
 from app.db.models.prediction import Prediction, DirectionEnum
 from app.db.models.symbol import Symbol
 from app.db.models.tenant import Tenant
-from app.core.predict.daily_predictor import predict_for_one_symbol
+from app.db.models.user import User
+from app.schemas.prediction import PredictionRequest
+from app.core.predict.daily_predictor import predict_for_one_symbol, predict_for_tenant
 from app.core.train.daily_trainer import train_model_for_symbol
 from app.core.logger import get_logger
 import asyncio
+from app.websockets.connection_manager import connection_manager
+import asyncio
 
 logger = get_logger(__name__)
+
+prediction_task_status = {}
+
+
+async def notify_prediction_status(task_id: str, tenant_id: int, status: str, details: Dict[str, Any] = None):
+    """Send WebSocket notification about prediction status"""
+    message = {"type": "prediction_status", "timestamp": datetime.now().isoformat(), "data": {"task_id": task_id, "status": status, **(details or {})}, "tenant_id": tenant_id}
+
+    # Broadcast to predictions topic
+    await connection_manager.broadcast(message, "predictions")
+
+    # Broadcast to task-specific topic
+    await connection_manager.broadcast(message, f"predictions_{task_id}")
+
+    # Broadcast to tenant
+    await connection_manager.broadcast_to_tenant(message, tenant_id)
 
 
 def get_latest_prediction(db: Session, symbol_id: int, tenant_id: int) -> Optional[Prediction]:
@@ -303,3 +323,35 @@ def get_accuracy_trend(db: Session, tenant_id: int, lookback_days: int = 7, symb
         trend_data = trend_data[-lookback_days:]
 
     return trend_data
+
+
+async def predict_for_tenant_with_notifications(tenant_id: int, request: Optional[PredictionRequest] = None, current_user: Optional[User] = None, task_id: str = None):
+    """Generate predictions for symbols with WebSocket notifications"""
+    # Send initial notification
+    asyncio.create_task(notify_prediction_status(task_id, tenant_id, "started", {"message": "Starting prediction generation"}))
+
+    try:
+        # Call the original function
+        results = predict_for_tenant(tenant_id, request, current_user)
+
+        # Calculate success statistics
+        success_count = sum(1 for r in results.values() if r)
+        total_count = len(results)
+
+        # Update status
+        prediction_task_status[task_id] = {"status": "completed", "completed_at": datetime.now().isoformat(), "success_count": success_count, "total_count": total_count, "tenant_id": tenant_id}
+
+        # Send completion notification
+        asyncio.create_task(notify_prediction_status(task_id, tenant_id, "completed", {"success_count": success_count, "total_count": total_count, "message": f"Completed generating predictions: {success_count}/{total_count} successful"}))
+
+        return results
+
+    except Exception as e:
+        # Update error status
+        prediction_task_status[task_id] = {"status": "failed", "error": str(e), "completed_at": datetime.now().isoformat(), "tenant_id": tenant_id}
+
+        # Send error notification
+        asyncio.create_task(notify_prediction_status(task_id, tenant_id, "failed", {"error": str(e), "message": f"Prediction generation failed: {str(e)}"}))
+        logger.error(f"Prediction generation failed: {e}")
+
+        return {}
