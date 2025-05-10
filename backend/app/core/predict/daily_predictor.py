@@ -14,7 +14,7 @@ from app.db.session import get_db_session, SessionLocal
 from app.db.models.prediction import Prediction
 from app.db.models.symbol import Symbol
 from app.db.models.tenant import Tenant
-from app.core.config import get_model_path, STRONG_MOVE_CONFIDENCE_THRESHOLD
+from app.core.config import get_model_path, get_model_config
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)

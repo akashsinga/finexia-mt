@@ -3,7 +3,12 @@ from sqlalchemy import Column, String, Integer, Float, Date, Boolean, UniqueCons
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from enum import Enum as PythonEnum
 
+class DirectionEnum(str, PythonEnum):
+    UP = "UP"
+    DOWN = "DOWN"
+    NONE = "NONE"
 
 class Prediction(Base):
     __tablename__ = "predictions"
