@@ -23,7 +23,7 @@ class ModelRequest(BaseModel):
     symbols: Optional[List[int]] = None # List of specific symbol id(s) to train
     model_type: ModelTypeEnum = ModelTypeEnum.LIGHTGBM
     is_active: bool = True
-    fo_eligible: bool = True
+    fo_eligible: bool = False
 
 
 class ModelStatus(BaseModel):

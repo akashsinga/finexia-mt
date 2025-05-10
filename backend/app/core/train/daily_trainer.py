@@ -202,9 +202,9 @@ def record_model_performance(session: Session, tenant_id: int, symbol_id: int, m
         session.rollback()
 
 
-def train_model_for_symbol(tenant_id: int, symbol_id: int) -> Dict[str, Any]:
+def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -> Dict[str, Any]:
     """Train models for a symbol with tenant isolation."""
-    session = next(get_db_session())
+    session = db if db else next(get_db_session())
     start_time = datetime.now()
 
     try:
@@ -213,7 +213,7 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int) -> Dict[str, Any]:
         symbol = session.query(Symbol).filter(Symbol.id == symbol_id).first()
 
         if not tenant or not symbol:
-            logger.error(f"Tenant {tenant_id} or symbol {symbol_id} not found")
+            logger.error(f"Tenant {tenant_id} or symbol {symbol.trading_symbol} not found")
             return {"status": "error", "message": "Tenant or symbol not found"}
 
         # Get training data
@@ -246,7 +246,7 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int) -> Dict[str, Any]:
         move_model = get_classifier(model_type, tenant_id, session)
 
         # Train move model
-        logger.info(f"Training move model for tenant {tenant_id}, symbol {symbol_id}")
+        logger.info(f"Training move model for tenant {tenant_id}, symbol {symbol.trading_symbol}")
         move_model.fit(X_train, y_train)
 
         # Calculate metrics
@@ -258,7 +258,7 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int) -> Dict[str, Any]:
 
         model_path = get_model_path(tenant, symbol_id, "move")
         joblib.dump(model_data, model_path)
-        logger.info(f"Saved move model for tenant {tenant_id}, symbol {symbol_id} - accuracy: {metrics['accuracy']:.3f}")
+        logger.info(f"Saved move model for tenant {tenant_id}, symbol {symbol.trading_symbol} - accuracy: {metrics['accuracy']:.3f}")
 
         # Record performance
         record_model_performance(session, tenant_id, symbol_id, "move", metrics, selected_features)
@@ -296,7 +296,7 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int) -> Dict[str, Any]:
 
                 dir_model_path = get_model_path(tenant, symbol_id, "direction")
                 joblib.dump(dir_model_data, dir_model_path)
-                logger.info(f"Saved direction model for tenant {tenant_id}, symbol {symbol_id} - accuracy: {dir_metrics['accuracy']:.3f}")
+                logger.info(f"Saved direction model for tenant {tenant_id}, symbol {symbol.trading_symbol} - accuracy: {dir_metrics['accuracy']:.3f}")
 
                 # Record performance
                 record_model_performance(session, tenant_id, symbol_id, "direction", dir_metrics, dir_features)
@@ -313,13 +313,13 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int) -> Dict[str, Any]:
         return {"status": "success", "symbol_id": symbol_id, "move_model": {"accuracy": metrics["accuracy"], "precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"], "feature_count": len(selected_features)}, "direction_model": direction_result, "duration": duration}
 
     except Exception as e:
-        logger.error(f"Error training model for tenant {tenant_id}, symbol {symbol_id}: {e}")
+        logger.error(f"Error training model for tenant {tenant_id}, symbol {symbol.trading_symbol}: {e}")
         return {"status": "error", "message": str(e)}
     finally:
         session.close()
 
 
-def train_models_for_tenant(tenant_id: int, request: ModelRequest, current_user: Optional[User] = None) -> Dict[int, Dict[str, Any]]:
+def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = None, current_user: Optional[User] = None) -> Dict[int, Dict[str, Any]]:
     """Train models for all specified symbols for a tenant."""
     session = next(get_db_session())
     results = {}
@@ -336,24 +336,25 @@ def train_models_for_tenant(tenant_id: int, request: ModelRequest, current_user:
         if not request.symbols:
             # Get tenant's watchlist symbols
             if current_user and current_user.is_superadmin:
-                symbols = session.query(Symbol).all()
+                query = session.query(Symbol)
                 if request.is_active:
-                    symbols = symbols.filter(Symbol.active)
+                    query = query.filter(Symbol.active)
                 if request.fo_eligible:
-                    symbols = symbols.filter(Symbol.fo_eligible)
-                symbol_ids = [item["id"] for item in symbols]
+                    query = query.filter(Symbol.fo_eligible)
+                symbols = query.all()
+                symbol_ids = [symbol.id for symbol in symbols]
             else:
-                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible = True)
+                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=True)
                 symbol_ids = [item["symbol_id"] for item in watchlist]
 
         logger.info(f"Training models for tenant {tenant_id}: {len(symbol_ids)} symbols")
-        
+
         num_workers = min(32, multiprocessing.cpu_count() * 2)
 
         def worker(symbol_id):
             local_db = next(get_db_session())
             try:
-                return symbol_id, train_model_for_symbol(symbol_id, tenant_id, local_db)
+                return symbol_id, train_model_for_symbol(tenant_id=tenant_id, symbol_id=symbol_id, db=local_db)
             except Exception as e:
                 logger.error(f"Training failed for symbol {symbol_id}: {e}")
                 return symbol_id, {"status": "error", "message": str(e)}

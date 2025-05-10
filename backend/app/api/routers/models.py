@@ -22,7 +22,7 @@ async def list_models(status: Optional[ModelStatusEnum] = Query(None, descriptio
 
 
 @router.post("/train", response_model=ModelTrainingResponse, status_code=status.HTTP_202_ACCEPTED)
-async def train_model(background_tasks: BackgroundTasks, request: ModelRequest, db: Session = Depends(get_db_session), tenant=Depends(get_current_tenant), current_user=Depends(get_current_active_admin)):
+async def train_model(background_tasks: BackgroundTasks, request: Optional[ModelRequest] = None, db: Session = Depends(get_db_session), tenant=Depends(get_current_tenant), current_user=Depends(get_current_active_admin)):
     """Start training a model for a symbol"""
     # In a real implementation, this would:
     # 1. Validate the symbol belongs to this tenant

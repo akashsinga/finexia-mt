@@ -1,14 +1,15 @@
 # backend/app/api/routers/predictions.py
-from fastapi import APIRouter, HTTPException, Path, Query, Depends, status
-from typing import List, Optional, Dict, Any
-from datetime import date, datetime, timedelta
+from fastapi import APIRouter, HTTPException, Path, Query, Depends, status, BackgroundTasks
+from typing import List, Optional
+from datetime import date
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
 from app.db.models.prediction import Prediction, DirectionEnum
 from app.db.models.symbol import Symbol
-from app.schemas.prediction import PredictionResponse, PredictionList, PredictionFilter, PredictionStats
+from app.schemas.prediction import PredictionResponse, PredictionList, PredictionFilter, PredictionStats, PredictionRequest
 from app.services.prediction_service import get_latest_prediction, get_predictions_by_date, verify_predictions
+from app.core.predict.daily_predictor import predict_for_tenant
 from app.api.deps import get_current_tenant, get_current_user, get_current_active_admin
 
 router = APIRouter()
@@ -85,3 +86,12 @@ async def run_prediction_verification(db: Session = Depends(get_db_session), ten
     """Manually verify predictions against actual price movements"""
     updated_count = verify_predictions(db, tenant.id)
     return {"message": f"Verified {updated_count} predictions"}
+
+
+@router.post("/generate", status_code=status.HTTP_202_ACCEPTED)
+async def generate_predictions(background_tasks: BackgroundTasks, request: Optional[PredictionRequest] = None, db: Session = Depends(get_db_session), tenant=Depends(get_current_tenant), current_user=Depends(get_current_user)):
+    """Generate predictions for symbols"""
+
+    background_tasks.add_tassk(predict_for_tenant, tenant.id, request, current_user)
+
+    return {"message": "Prediction generation started", "status": "processing", "tenant_id": tenant.id, "symbols_count": len(request.symbols) if request.symbols else "all watchlist symbols", "requested_by": current_user.username}

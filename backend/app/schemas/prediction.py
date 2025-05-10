@@ -45,7 +45,12 @@ class PredictionFilter(BaseModel):
     direction: Optional[DirectionEnum] = None
     min_confidence: float = 0.5
     symbol_id: Optional[int] = None
-
+    
+    
+class PredictionRequest(BaseModel):
+    symbols: Optional[List[int]] = None
+    is_active: bool = True
+    fo_eligible: bool = False
 
 class PredictionStats(BaseModel):
     total_predictions: int
