@@ -18,8 +18,8 @@ from app.db.models.user import User
 from app.schemas.prediction import PredictionRequest
 from app.core.config import get_model_path
 from app.services.config_service import get_tenant_config
-from app.services.symbol_service import get_tenant_watchlist
 from app.core.logger import get_logger
+from app.services.symbol_service import get_tenant_watchlist
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -169,22 +169,24 @@ def predict_for_one_symbol(tenant_id: int, symbol_id: int) -> bool:
             logger.error(f"Tenant {tenant_id} or symbol {symbol_id} not found")
             return False
 
+        symbol_info = f"{symbol.trading_symbol} (ID: {symbol_id})"
+
         # Load latest features
         features_df = load_latest_features_for_symbol(symbol_id)
         if features_df.empty:
-            logger.warning(f"No feature data for symbol {symbol_id}")
+            logger.warning(f"No feature data for symbol {symbol_info}")
             return False
 
         # Load move model
         move_model_data = load_model_data(tenant_id, symbol_id, "move")
         if not move_model_data:
-            logger.warning(f"No move model for tenant {tenant_id}, symbol {symbol_id}")
+            logger.warning(f"No move model for tenant {tenant_id}, symbol {symbol_info}")
             return False
 
         # Prepare features
         X = prepare_features(features_df, move_model_data)
         if X.empty:
-            logger.warning(f"Failed to prepare features for symbol {symbol_id}")
+            logger.warning(f"Failed to prepare features for symbol {symbol_info}")
             return False
 
         # Make move prediction
@@ -193,7 +195,7 @@ def predict_for_one_symbol(tenant_id: int, symbol_id: int) -> bool:
             move_probs = move_model.predict_proba(X)[0]
             strong_move_confidence = float(move_probs[1])
         except Exception as e:
-            logger.error(f"Prediction failed for symbol {symbol_id}: {e}")
+            logger.error(f"Prediction failed for symbol {symbol_info}: {e}")
             return False
 
         # Direction prediction (only if move confidence is high enough)
@@ -201,7 +203,7 @@ def predict_for_one_symbol(tenant_id: int, symbol_id: int) -> bool:
         direction_confidence = None
 
         move_confidence_threshold = 0.5  # Default value
-                
+
         if tenant_id:
             threshold_from_config = get_tenant_config(session, tenant_id, "STRONG_MOVE_CONFIDENCE_THRESHOLD")
             if threshold_from_config is not None:
@@ -221,7 +223,7 @@ def predict_for_one_symbol(tenant_id: int, symbol_id: int) -> bool:
                     direction_prediction = "UP" if dir_probs[1] > dir_probs[0] else "DOWN"
                     direction_confidence = float(max(dir_probs[0], dir_probs[1]))
                 except Exception as e:
-                    logger.error(f"Direction prediction failed for symbol {symbol_id}: {e}")
+                    logger.error(f"Direction prediction failed for symbol {symbol_info}: {e}")
 
         # Save prediction
         latest_date = features_df.iloc[0]["date"]
@@ -229,14 +231,14 @@ def predict_for_one_symbol(tenant_id: int, symbol_id: int) -> bool:
 
         if success:
             duration = (datetime.now() - start_time).total_seconds()
-            logger.info(f"Prediction for tenant {tenant_id}, symbol {symbol_id} " f"successful in {duration:.2f}s - Move: {strong_move_confidence:.2f}")
+            logger.info(f"Prediction for tenant {tenant_id}, symbol {symbol_info} " f"successful in {duration:.2f}s - Move: {strong_move_confidence:.2f}")
             return True
         else:
-            logger.error(f"Failed to save prediction for symbol {symbol_id}")
+            logger.error(f"Failed to save prediction for symbol {symbol_info}")
             return False
 
     except Exception as e:
-        logger.error(f"Error in prediction for symbol {symbol_id}: {e}")
+        logger.error(f"Error in prediction for symbol {symbol_info if 'symbol_info' in locals() else symbol_id}: {e}")
         return False
     finally:
         session.close()
@@ -282,6 +284,9 @@ def predict_for_tenant(tenant_id: int, request: Optional[PredictionRequest] = No
                 watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=request.fo_eligible if request else True)
                 symbol_ids = [item["symbol_id"] for item in watchlist]
 
+        # Get symbol names for better logging
+        symbol_names = {s.id: s.trading_symbol for s in session.query(Symbol).filter(Symbol.id.in_(symbol_ids)).all()}
+
         logger.info(f"Generating predictions for tenant {tenant_id}: {len(symbol_ids)} symbols")
 
         num_workers = min(32, multiprocessing.cpu_count() * 2)
@@ -292,7 +297,8 @@ def predict_for_tenant(tenant_id: int, request: Optional[PredictionRequest] = No
                 success = predict_for_one_symbol(tenant_id=tenant_id, symbol_id=symbol_id)
                 return symbol_id, success
             except Exception as e:
-                logger.error(f"Prediction failed for symbol {symbol_id}: {e}")
+                symbol_name = symbol_names.get(symbol_id, f"ID: {symbol_id}")
+                logger.error(f"Prediction failed for symbol {symbol_name}: {e}")
                 return symbol_id, False
             finally:
                 local_db.close()

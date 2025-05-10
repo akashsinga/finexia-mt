@@ -71,6 +71,10 @@ def prepare_data_for_training(symbol_id: int, tenant_id: int = None) -> Tuple[pd
     session = next(get_db_session())
 
     try:
+        # Get symbol info for better logging
+        symbol = session.query(Symbol).filter(Symbol.id == symbol_id).first()
+        symbol_info = f"{symbol.trading_symbol} (ID: {symbol_id})" if symbol else f"ID: {symbol_id}"
+
         # Get feature data for symbol
         query = """
             SELECT * FROM feature_data 
@@ -80,7 +84,7 @@ def prepare_data_for_training(symbol_id: int, tenant_id: int = None) -> Tuple[pd
         features_df = pd.read_sql(text(query), session.bind, params={"symbol_id": symbol_id})
 
         if features_df.empty:
-            logger.warning(f"No feature data for symbol {symbol_id}")
+            logger.warning(f"No feature data for symbol {symbol_info}")
             return pd.DataFrame(), []
 
         # Get price data
@@ -93,7 +97,7 @@ def prepare_data_for_training(symbol_id: int, tenant_id: int = None) -> Tuple[pd
         closes_df = pd.read_sql(text(query), session.bind, params={"symbol_id": symbol_id})
 
         if closes_df.empty:
-            logger.warning(f"No price data for symbol {symbol_id}")
+            logger.warning(f"No price data for symbol {symbol_info}")
             return pd.DataFrame(), []
 
         # Get threshold from tenant config or use default
@@ -177,6 +181,10 @@ def select_features(X: pd.DataFrame, y: pd.Series, max_features: int = 10) -> Li
 def record_model_performance(session: Session, tenant_id: int, symbol_id: int, model_type: str, metrics: Dict[str, float], selected_features: List[str]):
     """Record model performance in database."""
     try:
+        # Get symbol info for better logging
+        symbol = session.query(Symbol).filter(Symbol.id == symbol_id).first()
+        symbol_info = f"{symbol.trading_symbol} (ID: {symbol_id})" if symbol else f"ID: {symbol_id}"
+
         # Find or create model entry
         from app.db.models.prediction_model import PredictionModel
 
@@ -237,10 +245,10 @@ def record_model_performance(session: Session, tenant_id: int, symbol_id: int, m
 
         session.add(performance)
         session.commit()
-        logger.info(f"Recorded model performance: accuracy {performance.accuracy:.3f}")
+        logger.info(f"Recorded model performance for {symbol_info}, {model_type}: accuracy {performance.accuracy:.3f}")
 
     except Exception as e:
-        logger.error(f"Failed to record model performance: {e}")
+        logger.error(f"Failed to record model performance for {symbol_info if 'symbol_info' in locals() else 'symbol ' + str(symbol_id)}: {e}")
         session.rollback()
 
 
@@ -258,11 +266,13 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -
             logger.error(f"Tenant {tenant_id} or symbol {symbol_id} not found")
             return {"status": "error", "message": "Tenant or symbol not found"}
 
+        symbol_info = f"{symbol.trading_symbol} (ID: {symbol_id})"
+
         # Get training data
         df, feature_cols = prepare_data_for_training(symbol_id, tenant_id)
 
         if df.empty or not feature_cols:
-            return {"status": "error", "message": "Insufficient data for training"}
+            return {"status": "error", "message": f"Insufficient data for training {symbol_info}"}
 
         # Get move prediction targets
         X = df[feature_cols]
@@ -289,7 +299,7 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -
 
         # Train move model
         move_train_start = datetime.now()
-        logger.info(f"Training move model for tenant {tenant_id}, symbol {symbol.trading_symbol}")
+        logger.info(f"Training move model for tenant {tenant_id}, symbol {symbol_info}")
 
         move_model = get_classifier(model_type, tenant_id, session)
         move_model.fit(X_train, y_train)
@@ -314,14 +324,14 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -
 
             metrics["roc_auc"] = roc_auc_score(y_test, move_probs)
         except Exception as e:
-            logger.warning(f"Could not calculate additional metrics: {e}")
+            logger.warning(f"Could not calculate additional metrics for {symbol_info}: {e}")
 
         # Save model with metadata
         model_data = {"model": move_model, "selected_features": selected_features, "training_date": datetime.now().date(), "metrics": metrics, "tenant_id": tenant_id}
 
         model_path = get_model_path(tenant, symbol_id, "move")
         joblib.dump(model_data, model_path)
-        logger.info(f"Saved move model for tenant {tenant_id}, symbol {symbol.trading_symbol} - accuracy: {metrics['accuracy']:.3f}")
+        logger.info(f"Saved move model for tenant {tenant_id}, symbol {symbol_info} - accuracy: {metrics['accuracy']:.3f}")
 
         # Record performance
         record_model_performance(session, tenant_id, symbol_id, "move", metrics, selected_features)
@@ -348,6 +358,7 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -
 
                 # Train direction model
                 dir_train_start = datetime.now()
+                logger.info(f"Training direction model for tenant {tenant_id}, symbol {symbol_info}")
                 dir_model = get_classifier(model_type, tenant_id, session)
                 dir_model.fit(X_dir_train, y_dir_train)
                 dir_train_duration = (datetime.now() - dir_train_start).total_seconds()
@@ -367,31 +378,31 @@ def train_model_for_symbol(tenant_id: int, symbol_id: int, db: Session = None) -
                     # Add ROC AUC if possible
                     dir_metrics["roc_auc"] = roc_auc_score(y_dir_test, dir_probs)
                 except Exception as e:
-                    logger.warning(f"Could not calculate additional metrics for direction model: {e}")
+                    logger.warning(f"Could not calculate additional metrics for direction model of {symbol_info}: {e}")
 
                 # Save model
                 dir_model_data = {"model": dir_model, "selected_features": dir_features, "training_date": datetime.now().date(), "metrics": dir_metrics, "tenant_id": tenant_id}
 
                 dir_model_path = get_model_path(tenant, symbol_id, "direction")
                 joblib.dump(dir_model_data, dir_model_path)
-                logger.info(f"Saved direction model for tenant {tenant_id}, symbol {symbol.trading_symbol} - accuracy: {dir_metrics['accuracy']:.3f}")
+                logger.info(f"Saved direction model for tenant {tenant_id}, symbol {symbol_info} - accuracy: {dir_metrics['accuracy']:.3f}")
 
                 # Record performance
                 record_model_performance(session, tenant_id, symbol_id, "direction", dir_metrics, dir_features)
 
                 direction_result = {"status": "success", "accuracy": dir_metrics["accuracy"], "precision": dir_metrics["precision"], "recall": dir_metrics["recall"], "f1": dir_metrics["f1"], "feature_count": len(dir_features), "roc_auc": dir_metrics.get("roc_auc"), "mse": dir_metrics.get("mse"), "rmse": dir_metrics.get("rmse"), "mae": dir_metrics.get("mae"), "r2": dir_metrics.get("r2")}
             else:
-                direction_result = {"status": "skipped", "reason": "Insufficient samples after split"}
+                direction_result = {"status": "skipped", "reason": f"Insufficient samples after split for {symbol_info}"}
         else:
-            direction_result = {"status": "skipped", "reason": "Insufficient strong move samples"}
+            direction_result = {"status": "skipped", "reason": f"Insufficient strong move samples for {symbol_info}"}
 
         # Calculate total duration
         final_duration = (datetime.now() - start_time).total_seconds()
 
-        return {"status": "success", "symbol_id": symbol_id, "move_model": {"accuracy": metrics["accuracy"], "precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"], "feature_count": len(selected_features)}, "direction_model": direction_result, "duration": final_duration}
+        return {"status": "success", "symbol_id": symbol_id, "symbol_name": symbol.trading_symbol, "move_model": {"accuracy": metrics["accuracy"], "precision": metrics["precision"], "recall": metrics["recall"], "f1": metrics["f1"], "feature_count": len(selected_features)}, "direction_model": direction_result, "duration": final_duration}
 
     except Exception as e:
-        logger.error(f"Error training model for tenant {tenant_id}, symbol {symbol_id}: {e}")
+        logger.error(f"Error training model for tenant {tenant_id}, symbol {symbol_info if 'symbol_info' in locals() else symbol_id}: {e}")
         return {"status": "error", "message": str(e)}
     finally:
         if not db:  # Only close if we created the session
@@ -419,10 +430,11 @@ def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = No
                 symbol_ids = request.symbols
             else:
                 # Non-super admin can only use symbols that are in both request and their watchlist
-                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=False)
+                watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=request.fo_eligible if request else True)
                 watchlist_ids = [item["symbol_id"] for item in watchlist]
                 symbol_ids = [sid for sid in request.symbols if sid in watchlist_ids]
         else:
+            # No specific symbols requested
             if current_user and current_user.is_superadmin:
                 # Super admin gets all symbols
                 query = session.query(Symbol)
@@ -437,6 +449,9 @@ def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = No
                 watchlist = get_tenant_watchlist(session, tenant_id, active_only=True, fo_eligible=request.fo_eligible if request else True)
                 symbol_ids = [item["symbol_id"] for item in watchlist]
 
+        # Get symbol names for better logging
+        symbol_names = {s.id: s.trading_symbol for s in session.query(Symbol).filter(Symbol.id.in_(symbol_ids)).all()}
+
         logger.info(f"Training models for tenant {tenant_id}: {len(symbol_ids)} symbols")
 
         num_workers = min(32, multiprocessing.cpu_count() * 2)
@@ -446,7 +461,8 @@ def train_models_for_tenant(tenant_id: int, request: Optional[ModelRequest] = No
             try:
                 return symbol_id, train_model_for_symbol(tenant_id=tenant_id, symbol_id=symbol_id, db=local_db)
             except Exception as e:
-                logger.error(f"Training failed for symbol {symbol_id}: {e}")
+                symbol_name = symbol_names.get(symbol_id, f"ID: {symbol_id}")
+                logger.error(f"Training failed for symbol {symbol_name}: {e}")
                 return symbol_id, {"status": "error", "message": str(e)}
             finally:
                 local_db.close()
