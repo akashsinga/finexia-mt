@@ -1,4 +1,4 @@
-# app/core/config.py
+# backend/app/core/config.py
 
 import os
 from typing import Dict, Any, Optional

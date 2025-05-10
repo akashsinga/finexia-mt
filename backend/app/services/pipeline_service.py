@@ -1,11 +1,13 @@
 # backend/app/services/pipeline_service.py
+
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import asyncio
 import logging
+from app.core.logger import get_logger
 
-logger = logging.getLogger("finexia-api")
+logger = get_logger(__name__)
 
 
 class PipelineStatus:
@@ -82,26 +84,50 @@ async def run_pipeline(tenant_id: int, steps: Optional[List[str]] = None, force:
             update_pipeline_status(tenant_id=tenant_id, status=PipelineStatus.RUNNING, current_step=step, progress=completed_steps / total_steps, message=f"Running step: {step}")
 
             # Run the appropriate step function
-            # In a real implementation, these would call your actual pipeline functions
             if step == PipelineStep.DATA_IMPORT:
-                # Import data
+                # Import data (EOD data is tenant-agnostic, so this step is just informational)
+                logger.info(f"Data import step for tenant {tenant_id}")
                 await asyncio.sleep(2)  # Simulating work
 
             elif step == PipelineStep.FEATURE_ENGINEERING:
-                # Process features
+                # Process features (features are tenant-agnostic)
+                logger.info(f"Feature engineering step for tenant {tenant_id}")
                 await asyncio.sleep(3)  # Simulating work
 
             elif step == PipelineStep.MODEL_TRAINING:
-                # Train models
-                await asyncio.sleep(5)  # Simulating work
+                # Train tenant-specific models
+                logger.info(f"Model training step for tenant {tenant_id}")
+                # This would call the actual training function
+                from app.core.train.daily_trainer import train_models_for_tenant
+
+                # Run in thread to avoid blocking
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, lambda: train_models_for_tenant(tenant_id))
+
+                # Check result and log
+                success_count = sum(1 for r in result.values() if r.get("status") == "success")
+                total_count = len(result)
+                logger.info(f"Trained {success_count}/{total_count} models for tenant {tenant_id}")
 
             elif step == PipelineStep.PREDICTION_GENERATION:
-                # Generate predictions
-                await asyncio.sleep(2)  # Simulating work
+                # Generate tenant-specific predictions
+                logger.info(f"Prediction generation step for tenant {tenant_id}")
+                # This would call the actual prediction function
+                from app.core.predict.daily_predictor import predict_for_tenant
+
+                # Run in thread to avoid blocking
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, lambda: predict_for_tenant(tenant_id))
+
+                # Check result and log
+                success_count = sum(1 for success in result.values() if success)
+                total_count = len(result)
+                logger.info(f"Generated {success_count}/{total_count} predictions for tenant {tenant_id}")
 
             elif step == PipelineStep.VERIFICATION:
-                # Verify predictions
-                await asyncio.sleep(1)  # Simulating work
+                # Verify tenant-specific predictions
+                logger.info(f"Verification step for tenant {tenant_id}")
+                await asyncio.sleep(1)  # Simulating work - would call actual verification
 
             # Update progress
             completed_steps += 1
