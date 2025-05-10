@@ -135,3 +135,38 @@ async def symbol_import_websocket(websocket: WebSocket, task_id: str):
             # Keep connection alive
     except WebSocketDisconnect:
         connection_manager.disconnect(websocket)
+
+
+@router.websocket("/ws/eod_import/{task_id}")
+async def eod_import_websocket(websocket: WebSocket, task_id: str):
+    """WebSocket endpoint for receiving updates about EOD data import"""
+    # Verify client token
+    is_authenticated, user_data = await verify_token(websocket)
+    if not is_authenticated:
+        return
+
+    # Only superadmins can subscribe to import status
+    if not user_data.get("is_superadmin", False):
+        await websocket.close(code=4003, reason="Superadmin privileges required")
+        return
+
+    # Generate a unique client ID
+    username = user_data.get("username", "unknown")
+    client_id = f"{username}_{uuid.uuid4()}"
+
+    # Connect to the specific channel for this import task
+    await connection_manager.connect(websocket, client_id, f"eod_import_{task_id}")
+
+    # Send initial status if available
+    from app.services.eod_data_service import get_import_status
+
+    status = get_import_status(task_id)
+    if status.get("status") != "not_found":
+        await websocket.send_json({"type": "eod_import_status", "timestamp": datetime.now().isoformat(), "data": status})
+
+    try:
+        # Keep the connection alive
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        connection_manager.disconnect(websocket, client_id)
