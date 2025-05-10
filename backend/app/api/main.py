@@ -6,7 +6,7 @@ import os
 
 from app.config import settings
 from app.api.middleware.tenant import TenantMiddleware
-from app.api.routers import auth, users, tenants, symbols, config, system, eod_data
+from app.api.routers import auth, users, tenants, symbols, config, system, eod_data, watchlist
 from app.websockets.router import router as websocket_router
 from app.db.base import Base
 from app.db.session import engine
@@ -60,6 +60,7 @@ app.include_router(symbols.router, prefix=f"{settings.API_V1_PREFIX}/symbols", t
 app.include_router(config.router, prefix=f"{settings.API_V1_PREFIX}/config", tags=["config"])
 app.include_router(system.router, prefix=f"{settings.API_V1_PREFIX}/system", tags=["system"])
 app.include_router(eod_data.router, prefix=f"{settings.API_V1_PREFIX}/eod", tags=["eod"])
+app.include_router(watchlist.router, prefix="/api/v1/watchlist", tags=["watchlist"])
 
 # Future routers to be added when implemented:
 # app.include_router(predictions.router, prefix=f"{settings.API_V1_PREFIX}/predictions", tags=["predictions"])
